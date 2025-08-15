@@ -1,0 +1,1805 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Business Hub - Casa de Show</title>
+    
+    <!-- Tailwind CSS + Configurações customizadas -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#f3f1ff',
+                            100: '#e9e5ff',
+                            500: '#8b5cf6',
+                            600: '#7c3aed',
+                            700: '#6d28d9',
+                            900: '#4c1d95'
+                        },
+                        gray: {
+                            50: '#f9fafb',
+                            100: '#f3f4f6',
+                            800: '#1f2937',
+                            900: '#111827'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-in-out',
+                        'slide-up': 'slideUp 0.3s ease-out',
+                        'pulse-slow': 'pulse 3s infinite',
+                        'bounce-subtle': 'bounceSubtle 2s infinite'
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Google Fonts: Inter (mais moderno que Arial) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    
+    <!-- Socket.IO -->
+    <script src="/socket.io/socket.io.js"></script>
+    
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes bounceSubtle {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-2px); }
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+        
+        .gradient-border {
+            position: relative;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 2px;
+            border-radius: 12px;
+        }
+        
+        .gradient-border::before {
+            content: '';
+            position: absolute;
+            inset: 1px;
+            background: white;
+            border-radius: 10px;
+        }
+        
+        .hover-lift {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .hover-lift:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+        
+        .neon-glow {
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+        }
+        
+        .status-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        .scrollbar-thin::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-track {
+            background: #374151;
+            border-radius: 3px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background: #6b7280;
+            border-radius: 3px;
+        }
+        
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .floating-animation {
+            animation: floating 3s ease-in-out infinite;
+        }
+
+        @keyframes floating {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .glow-on-hover {
+            transition: all 0.3s ease;
+        }
+
+        .glow-on-hover:hover {
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.4);
+            transform: scale(1.02);
+        }
+
+        .card-hover-effect {
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .card-hover-effect:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+        }
+
+        .loading-spinner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            opacity: 1;
+            transition: opacity 0.5s ease;
+        }
+
+        .loading-spinner.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(139, 92, 246, 0.3);
+            border-top: 4px solid #8b5cf6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @media (max-width: 768px) {
+            .grid-cols-1.md\\:grid-cols-4 {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .lg\\:grid-cols-2 {
+                grid-template-columns: 1fr;
+            }
+            
+            .lg\\:col-span-2 {
+                grid-column: span 1;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 min-h-screen font-sans">
+    
+    <!-- Loading Spinner -->
+    <div id="loading-spinner" class="loading-spinner">
+        <div class="text-center">
+            <div class="spinner mb-4"></div>
+            <p class="text-white font-semibold">Carregando WhatsApp Business Hub...</p>
+        </div>
+    </div>
+    
+    <!-- Header Moderno -->
+    <header class="sticky top-0 z-50 backdrop-blur-md bg-white/80 dark:bg-gray-900/80 border-b border-gray-200 dark:border-gray-700">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo e Título -->
+                <div class="flex items-center space-x-4">
+                    <div class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center">
+                        <i data-lucide="message-circle" class="w-6 h-6 text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold gradient-text">WhatsApp Business Hub</h1>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Casa de Show - Sistema Multi-Sessão</p>
+                    </div>
+                </div>
+                
+                <!-- Controles do Header -->
+                <div class="flex items-center space-x-4">
+                    <!-- Toggle Dark Mode -->
+                    <button id="theme-toggle" class="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                        <i data-lucide="sun" class="w-5 h-5 dark:hidden"></i>
+                        <i data-lucide="moon" class="w-5 h-5 hidden dark:block"></i>
+                    </button>
+                    
+                    <!-- Status Geral -->
+                    <div class="flex items-center space-x-2 px-3 py-2 bg-green-100 dark:bg-green-900/30 rounded-full">
+                        <div class="w-2 h-2 bg-green-500 rounded-full status-pulse"></div>
+                        <span class="text-sm font-medium text-green-700 dark:text-green-300">Sistema Online</span>
+                    </div>
+                    
+                    <!-- Menu -->
+                    <button class="p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                        <i data-lucide="menu" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- Stats Cards Modernas -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <!-- Total Mensagens -->
+            <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 dark:border-gray-700 card-hover-effect">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Mensagens Hoje</p>
+                        <p class="text-3xl font-bold gradient-text" id="messages-today">847</p>
+                        <p class="text-sm text-green-600 dark:text-green-400 flex items-center mt-1">
+                            <i data-lucide="trending-up" class="w-4 h-4 mr-1"></i>
+                            +12% vs ontem
+                        </p>
+                    </div>
+                    <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center floating-animation">
+                        <i data-lucide="message-square" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Vendas -->
+            <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 dark:border-gray-700 card-hover-effect">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Vendas Hoje</p>
+                        <p class="text-3xl font-bold gradient-text" id="sales-today">R$ 12.4k</p>
+                        <p class="text-sm text-green-600 dark:text-green-400 flex items-center mt-1">
+                            <i data-lucide="trending-up" class="w-4 h-4 mr-1"></i>
+                            +8% vs ontem
+                        </p>
+                    </div>
+                    <div class="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center floating-animation" style="animation-delay: 0.5s;">
+                        <i data-lucide="shopping-cart" class="w-6 h-6 text-green-600 dark:text-green-400"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Conversões -->
+            <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 dark:border-gray-700 card-hover-effect">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Taxa Conversão</p>
+                        <p class="text-3xl font-bold gradient-text" id="conversion-rate">23.8%</p>
+                        <p class="text-sm text-green-600 dark:text-green-400 flex items-center mt-1">
+                            <i data-lucide="trending-up" class="w-4 h-4 mr-1"></i>
+                            +2.1% vs ontem
+                        </p>
+                    </div>
+                    <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center floating-animation" style="animation-delay: 1s;">
+                        <i data-lucide="target" class="w-6 h-6 text-purple-600 dark:text-purple-400"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tempo Resposta -->
+            <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 dark:border-gray-700 card-hover-effect">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Tempo Resp.</p>
+                        <p class="text-3xl font-bold gradient-text" id="response-time">1.2s</p>
+                        <p class="text-sm text-green-600 dark:text-green-400 flex items-center mt-1">
+                            <i data-lucide="zap" class="w-4 h-4 mr-1"></i>
+                            Instantâneo
+                        </p>
+                    </div>
+                    <div class="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-xl flex items-center justify-center floating-animation" style="animation-delay: 1.5s;">
+                        <i data-lucide="clock" class="w-6 h-6 text-amber-600 dark:text-amber-400"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sessions Grid Moderno -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            
+            <!-- Sessão de Vendas -->
+            <div class="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-3xl p-8 border border-gray-200 dark:border-gray-700 hover-lift group">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-16 h-16 bg-gradient-to-br from-green-400 to-green-600 rounded-2xl flex items-center justify-center shadow-lg">
+                            <i data-lucide="shopping-bag" class="w-8 h-8 text-white"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Bot Vendas</h2>
+                            <p class="text-gray-600 dark:text-gray-400">Sistema de e-commerce automatizado</p>
+                        </div>
+                    </div>
+                    <div id="sales-status-badge" class="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-full text-sm font-medium flex items-center space-x-2">
+                        <div class="w-2 h-2 bg-red-500 rounded-full"></div>
+                        <span>Desconectado</span>
+                    </div>
+                </div>
+                
+                <!-- QR Code Container -->
+                <div id="sales-qr-container" class="hidden mb-6">
+                    <div class="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-2xl p-6 text-center border-2 border-dashed border-gray-300 dark:border-gray-600">
+                        <div class="mb-4">
+                            <div class="w-12 h-12 bg-primary-100 dark:bg-primary-900/30 rounded-xl mx-auto flex items-center justify-center mb-3">
+                                <i data-lucide="qr-code" class="w-6 h-6 text-primary-600 dark:text-primary-400"></i>
+                            </div>
+                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Escaneie com WhatsApp Business</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Use um número dedicado para vendas</p>
+                        </div>
+                        <div class="flex justify-center">
+                            <img id="sales-qr-image" class="w-48 h-48 border-4 border-white dark:border-gray-700 rounded-2xl shadow-lg" src="" alt="QR Code Vendas">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Controles -->
+                <div class="flex space-x-3 mb-6">
+                    <button onclick="startSession('sales')" class="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 group glow-on-hover">
+                        <i data-lucide="play" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                        <span>Iniciar Vendas</span>
+                    </button>
+                    <button onclick="stopSession('sales')" class="px-6 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-xl transition-colors flex items-center justify-center hover:scale-105" title="Parar Sessão">
+                        <i data-lucide="square" class="w-5 h-5"></i>
+                    </button>
+                    <button onclick="logoutSession('sales')" class="px-6 py-3 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-700 dark:text-red-400 rounded-xl transition-colors flex items-center justify-center hover:scale-105" title="Desconectar WhatsApp">
+                        <i data-lucide="log-out" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                
+                <!-- Métricas da Sessão -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">Última atividade</p>
+                        <p class="font-semibold text-gray-900 dark:text-white" id="sales-activity">-</p>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">Uptime</p>
+                        <p class="font-semibold text-gray-900 dark:text-white" id="sales-uptime">00:00:00</p>
+                    </div>
+                </div>
+                
+                <!-- Features Lista -->
+                <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <h4 class="font-semibold text-gray-900 dark:text-white mb-3">Funcionalidades</h4>
+                    <div class="space-y-2">
+                        <div class="flex items-center space-x-3 text-sm">
+                            <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <span class="text-gray-600 dark:text-gray-400">Catálogo digital (camarotes, bistro, ingressos)</span>
+                        </div>
+                        <div class="flex items-center space-x-3 text-sm">
+                            <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <span class="text-gray-600 dark:text-gray-400">Carrinho de compras via WhatsApp</span>
+                        </div>
+                        <div class="flex items-center space-x-3 text-sm">
+                            <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <span class="text-gray-600 dark:text-gray-400">Pagamento PIX automático</span>
+                        </div>
+                        <div class="flex items-center space-x-3 text-sm">
+                            <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <span class="text-gray-600 dark:text-gray-400">Entrega digital de ingressos</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Sessão de Suporte -->
+            <div class="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-3xl p-8 border border-gray-200 dark:border-gray-700 hover-lift group">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-16 h-16 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
+                            <i data-lucide="headphones" class="w-8 h-8 text-white"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Bot Suporte</h2>
+                            <p class="text-gray-600 dark:text-gray-400">Atendimento inteligente com IA</p>
+                        </div>
+                    </div>
+                    <div id="support-status-badge" class="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-full text-sm font-medium flex items-center space-x-2">
+                        <div class="w-2 h-2 bg-red-500 rounded-full"></div>
+                        <span>Desconectado</span>
+                    </div>
+                </div>
+                
+                <!-- QR Code Container -->
+                <div id="support-qr-container" class="hidden mb-6">
+                    <div class="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-2xl p-6 text-center border-2 border-dashed border-gray-300 dark:border-gray-600">
+                        <div class="mb-4">
+                            <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl mx-auto flex items-center justify-center mb-3">
+                                <i data-lucide="qr-code" class="w-6 h-6 text-blue-600 dark:text-blue-400"></i>
+                            </div>
+                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Escaneie com WhatsApp Pessoal</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Use um número dedicado para suporte</p>
+                        </div>
+                        <div class="flex justify-center">
+                            <img id="support-qr-image" class="w-48 h-48 border-4 border-white dark:border-gray-700 rounded-2xl shadow-lg" src="" alt="QR Code Suporte">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Controles -->
+                <div class="flex space-x-3 mb-6">
+                    <button onclick="startSession('support')" class="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 group glow-on-hover">
+                        <i data-lucide="play" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                        <span>Iniciar Suporte</span>
+                    </button>
+                    <button onclick="stopSession('support')" class="px-6 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-xl transition-colors flex items-center justify-center hover:scale-105" title="Parar Sessão">
+                        <i data-lucide="square" class="w-5 h-5"></i>
+                    </button>
+                    <button onclick="logoutSession('support')" class="px-6 py-3 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-700 dark:text-red-400 rounded-xl transition-colors flex items-center justify-center hover:scale-105" title="Desconectar WhatsApp">
+                        <i data-lucide="log-out" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                
+                <!-- Métricas da Sessão -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">Última atividade</p>
+                        <p class="font-semibold text-gray-900 dark:text-white" id="support-activity">-</p>
+                    </div>
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">Uptime</p>
+                        <p class="font-semibold text-gray-900 dark:text-white" id="support-uptime">00:00:00</p>
+                    </div>
+                </div>
+                
+                <!-- Features Lista -->
+                <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <h4 class="font-semibold text-gray-900 dark:text-white mb-3">Funcionalidades</h4>
+                    <div class="space-y-2">
+                        <div class="flex items-center space-x-3 text-sm">
+                            <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <span class="text-gray-600 dark:text-gray-400">Atendimento com IA GPT-4</span>
+                        </div>
+                        <div class="flex items-center space-x-3 text-sm">
+                            <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <span class="text-gray-600 dark:text-gray-400">FAQ automatizado</span>
+                        </div>
+                        <div class="flex items-center space-x-3 text-sm">
+                            <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <span class="text-gray-600 dark:text-gray-400">Direcionamento para vendas</span>
+                        </div>
+                        <div class="flex items-center space-x-3 text-sm">
+                            <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            <span class="text-gray-600 dark:text-gray-400">Suporte técnico</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Campanhas e Logs em Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- Campanhas -->
+            <div class="lg:col-span-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-3xl p-8 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center">
+                            <i data-lucide="megaphone" class="w-6 h-6 text-purple-600 dark:text-purple-400"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-xl font-bold text-gray-900 dark:text-white">Campanhas Marketing</h2>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Disparo em massa via multi-sessão</p>
+                        </div>
+                    </div>
+                    <button class="px-4 py-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors text-sm font-medium">
+                        Nova Campanha
+                    </button>
+                </div>
+                
+                <!-- Seletor de Sessão -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Bot para Envio</label>
+                    <select id="campaign-session" class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors">
+                        <option value="sales">🛒 Bot Vendas (Promoções e Ofertas)</option>
+                        <option value="support">🛟 Bot Suporte (Informativos e Avisos)</option>
+                    </select>
+                </div>
+                
+                <!-- Seletor de Fonte de Números -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Origem dos Números</label>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <button onclick="showContactsFromWhatsApp()" class="p-4 bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-700 rounded-xl hover:border-green-400 dark:hover:border-green-500 transition-colors flex flex-col items-center space-y-2 text-green-700 dark:text-green-300">
+                            <i data-lucide="users" class="w-6 h-6"></i>
+                            <span class="text-sm font-medium">Contatos WhatsApp</span>
+                        </button>
+                        <button onclick="showFileUpload()" class="p-4 bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-700 rounded-xl hover:border-blue-400 dark:hover:border-blue-500 transition-colors flex flex-col items-center space-y-2 text-blue-700 dark:text-blue-300">
+                            <i data-lucide="upload" class="w-6 h-6"></i>
+                            <span class="text-sm font-medium">Upload Arquivo</span>
+                        </button>
+                        <button onclick="showManualInput()" class="p-4 bg-purple-50 dark:bg-purple-900/20 border-2 border-purple-200 dark:border-purple-700 rounded-xl hover:border-purple-400 dark:hover:border-purple-500 transition-colors flex flex-col items-center space-y-2 text-purple-700 dark:text-purple-300">
+                            <i data-lucide="edit" class="w-6 h-6"></i>
+                            <span class="text-sm font-medium">Digite Manualmente</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Lista de Contatos do WhatsApp -->
+                <div id="contacts-section" class="mb-6 hidden">
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="text-lg font-semibold text-gray-900 dark:text-white">Contatos do WhatsApp</h4>
+                            <div class="flex items-center space-x-3">
+                                <button onclick="selectAllContacts()" class="text-sm text-blue-600 dark:text-blue-400 hover:underline">Selecionar Todos</button>
+                                <button onclick="clearSelectedContacts()" class="text-sm text-gray-600 dark:text-gray-400 hover:underline">Limpar Seleção</button>
+                                <span id="selected-count" class="text-sm font-medium text-gray-700 dark:text-gray-300">0 selecionados</span>
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <input type="text" id="contact-search" placeholder="Buscar contatos..." class="w-full px-4 py-2 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" oninput="filterContacts()">
+                        </div>
+                        <div id="contacts-list" class="max-h-64 overflow-y-auto space-y-2">
+                            <!-- Contatos serão carregados aqui -->
+                        </div>
+                        <div id="contacts-loading" class="text-center py-8 hidden">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+                            <p class="mt-2 text-gray-600 dark:text-gray-400">Carregando contatos...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upload de Lista -->
+                <div id="file-upload-section" class="mb-6 hidden">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Lista de Números</label>
+                    
+                    <!-- Upload Area -->
+                    <div class="relative mb-4">
+                        <input type="file" id="campaign-file" accept=".csv,.txt,.xlsx,.xls" class="hidden">
+                        <button onclick="document.getElementById('campaign-file').click()" class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl hover:border-primary-400 dark:hover:border-primary-500 transition-colors flex items-center justify-center space-x-3 text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">
+                            <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+                            <span>Clique para fazer upload (CSV, TXT, Excel)</span>
+                        </button>
+                    </div>
+                    
+                    <!-- Upload Result -->
+                    <div id="upload-result" class="hidden bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 mb-4">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <i data-lucide="file-text" class="w-5 h-5 text-blue-600 dark:text-blue-400"></i>
+                                <div>
+                                    <p class="font-semibold text-blue-900 dark:text-blue-100" id="upload-filename"></p>
+                                    <p class="text-sm text-blue-700 dark:text-blue-300" id="upload-filesize"></p>
+                                </div>
+                            </div>
+                            <button onclick="processFile()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                                Processar Arquivo
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Processing Result -->
+                    <div id="processing-result" class="hidden">
+                        <!-- Numbers List -->
+                        <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 mb-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold text-green-900 dark:text-green-100 flex items-center space-x-2">
+                                    <i data-lucide="check-circle" class="w-5 h-5"></i>
+                                    <span>Números Carregados</span>
+                                </h4>
+                                <span id="valid-count" class="bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-200 px-3 py-1 rounded-full text-sm font-medium"></span>
+                            </div>
+                            
+                            <div id="numbers-preview" class="space-y-2 max-h-60 overflow-y-auto">
+                                <!-- Lista será preenchida dinamicamente -->
+                            </div>
+                            
+                            <div id="show-more-numbers" class="hidden mt-3 text-center">
+                                <button onclick="showAllNumbers()" class="text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 text-sm font-medium">
+                                    Ver todos os números →
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Errors (se houver) -->
+                        <div id="errors-section" class="hidden bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                            <h4 class="font-semibold text-red-900 dark:text-red-100 mb-3 flex items-center space-x-2">
+                                <i data-lucide="alert-circle" class="w-5 h-5"></i>
+                                <span>Números com Erro</span>
+                                <span id="error-count" class="bg-red-100 dark:bg-red-800 text-red-800 dark:text-red-200 px-3 py-1 rounded-full text-sm font-medium ml-auto"></span>
+                            </h4>
+                            <div id="errors-preview" class="space-y-1 max-h-40 overflow-y-auto text-sm">
+                                <!-- Erros serão preenchidos dinamicamente -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Input Manual -->
+                <div id="manual-input-section" class="mb-6 hidden">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Números (um por linha)</label>
+                    <textarea id="manual-numbers" rows="6" class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors resize-none" placeholder="5511999999999&#10;5511888888888&#10;5511777777777"></textarea>
+                </div>
+                
+                <!-- Editor de Mensagem -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Mensagem da Campanha</label>
+                    <textarea id="campaign-message" rows="6" class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors resize-none" placeholder="Digite sua mensagem promocional...">� ROYAL – A NOITE É SUA, O REINADO É NOSSO
+
+� Prepare-se para uma noite LENDÁRIA!
+MC DANIEL – O FALCÃO vai comandar o palco com os hits que tão explodindo em todo o Brasil.
+Se é luxo e exclusividade que você procura… Aqui é o seu lugar!
+
+🚗 CAMAROTES PREMIUM – Entre no universo dos milionários
+💰 McLaren, Ferrari, Lamborghini: R$ 6.000
+� Porsche: R$ 5.000
+💰 Bugatti, Rolls Royce: R$ 4.000
+
+🍾 BISTRÔS ROYAL – Vista privilegiada
+💰 1ª fileira: R$ 700 | 2ª fileira: R$ 600
+💰 3ª fileira: R$ 500 | 4ª fileira: R$ 400
+
+🎟 Pista: R$ 60
+
+💥 Garanta já no link oficial:
+👉 https://links.totalingressos.com/mc-daniel-na-royal.html
+
+💸 Pix direto = reserva confirmada!
+⚠️ Sem estorno em caso de cancelamento. Evento +18.
+
+⏳ Camarotes e Bistrôs esgotam rápido!
+📲 Chama no WhatsApp e garanta o seu antes que acabe.</textarea>
+                </div>
+                
+                <!-- Botão de Envio -->
+                <button onclick="sendCampaign()" class="w-full bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 flex items-center justify-center space-x-3 group glow-on-hover">
+                    <i data-lucide="send" class="w-5 h-5 group-hover:translate-x-1 transition-transform"></i>
+                    <span>Enviar Campanha</span>
+                </button>
+                
+                <div id="campaign-result" class="mt-4"></div>
+            </div>
+            
+            <!-- Exportar Contatos WhatsApp -->
+            <div class="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-3xl p-6 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-gradient-to-br from-teal-400 to-teal-600 rounded-xl flex items-center justify-center">
+                            <i data-lucide="download" class="w-5 h-5 text-white"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Exportar Contatos WhatsApp</h3>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Baixe a lista de contatos das sessões conectadas</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="space-y-4">
+                    <!-- Seleção de Sessão -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Sessão do WhatsApp</label>
+                        <select id="export-session" class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-colors">
+                            <option value="sales">🛒 Vendas</option>
+                            <option value="support">🛟 Suporte</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Formato de Exportação -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Formato de Exportação</label>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <button onclick="setExportFormat('csv')" class="export-format-btn active px-4 py-3 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 border-2 border-teal-200 dark:border-teal-700 rounded-xl text-sm font-medium transition-all hover:bg-teal-100 dark:hover:bg-teal-800/50" data-format="csv">
+                                📊 CSV
+                            </button>
+                            <button onclick="setExportFormat('txt')" class="export-format-btn px-4 py-3 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-gray-200 dark:border-gray-600 rounded-xl text-sm font-medium transition-all hover:bg-gray-100 dark:hover:bg-gray-600" data-format="txt">
+                                📄 TXT
+                            </button>
+                            <button onclick="setExportFormat('json')" class="export-format-btn px-4 py-3 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-gray-200 dark:border-gray-600 rounded-xl text-sm font-medium transition-all hover:bg-gray-100 dark:hover:bg-gray-600" data-format="json">
+                                🔧 JSON
+                            </button>
+                            <button onclick="setExportFormat('vcf')" class="export-format-btn px-4 py-3 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-2 border-gray-200 dark:border-gray-600 rounded-xl text-sm font-medium transition-all hover:bg-gray-100 dark:hover:bg-gray-600" data-format="vcf">
+                                📱 vCard
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Botões de Ação -->
+                    <div class="flex space-x-3">
+                        <button onclick="showWhatsAppStats()" class="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 flex items-center justify-center space-x-2">
+                            <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+                            <span>Ver Estatísticas</span>
+                        </button>
+                        <button onclick="exportWhatsAppContacts()" class="flex-1 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 group">
+                            <i data-lucide="download" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                            <span>Exportar Contatos</span>
+                        </button>
+                    </div>
+                    
+                    <!-- Resultado da Exportação -->
+                    <div id="export-result" class="hidden mt-4 p-4 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-xl">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                <i data-lucide="check" class="w-4 h-4 text-white"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-green-800 dark:text-green-200">Exportação Concluída!</h4>
+                                <p id="export-message" class="text-sm text-green-700 dark:text-green-300"></p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Estatísticas dos Contatos -->
+                    <div id="whatsapp-stats" class="hidden mt-4 p-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-xl">
+                        <h4 class="font-semibold text-blue-800 dark:text-blue-200 mb-3">📊 Estatísticas dos Contatos</h4>
+                        <div id="stats-content" class="space-y-2 text-sm text-blue-700 dark:text-blue-300">
+                            <!-- Conteúdo das estatísticas será inserido aqui -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Logs System -->
+            <div class="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-3xl p-6 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-gray-100 dark:bg-gray-700 rounded-xl flex items-center justify-center">
+                            <i data-lucide="terminal" class="w-5 h-5 text-gray-600 dark:text-gray-400"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Logs Sistema</h3>
+                    </div>
+                    <button onclick="clearLogs()" class="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm">
+                        Limpar
+                    </button>
+                </div>
+                
+                <div id="system-logs" class="bg-gray-900 text-green-400 font-mono text-sm p-4 rounded-xl h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
+                    <div class="flex items-center space-x-2 mb-2">
+                        <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                        <span class="text-gray-500">[Sistema]</span>
+                        <span>Interface moderna carregada ✓</span>
+                    </div>
+                    <div class="flex items-center space-x-2 mb-2">
+                        <div class="w-2 h-2 bg-blue-400 rounded-full"></div>
+                        <span class="text-gray-500">[Socket.IO]</span>
+                        <span>Conexão estabelecida ✓</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <div class="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
+                        <span class="text-gray-500">[Multi-Sessão]</span>
+                        <span>Aguardando conexões...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Scripts -->
+    <script>
+        // Inicializar Lucide Icons
+        lucide.createIcons();
+        
+        // Dark Mode Toggle
+        const themeToggle = document.getElementById('theme-toggle');
+        const html = document.documentElement;
+        
+        themeToggle.addEventListener('click', () => {
+            html.classList.toggle('dark');
+            localStorage.setItem('theme', html.classList.contains('dark') ? 'dark' : 'light');
+        });
+        
+        // Aplicar tema salvo
+        if (localStorage.getItem('theme') === 'light') {
+            html.classList.remove('dark');
+        } else {
+            html.classList.add('dark'); // Dark mode por padrão
+        }
+        
+        // Socket.IO Connection
+        const socket = io();
+        
+        // Estado global
+        let sessionStates = {
+            sales: { status: 'disconnected', messages: 0, sales: 0, uptime: 0 },
+            support: { status: 'disconnected', messages: 0, tickets: 0, uptime: 0 }
+        };
+        
+        let campaignActive = false;
+        let startTime = Date.now();
+        
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', function() {
+            // Ocultar loading spinner após 2 segundos
+            setTimeout(() => {
+                document.getElementById('loading-spinner').classList.add('hidden');
+            }, 2000);
+            
+            updateStats();
+            setupSocketListeners();
+            startMetricsUpdate();
+            
+            // Animar entrada dos elementos
+            setTimeout(() => {
+                const animatedElements = document.querySelectorAll('.card-hover-effect, .hover-lift');
+                animatedElements.forEach((element, index) => {
+                    element.style.opacity = '0';
+                    element.style.transform = 'translateY(20px)';
+                    setTimeout(() => {
+                        element.style.transition = 'all 0.6s ease';
+                        element.style.opacity = '1';
+                        element.style.transform = 'translateY(0)';
+                    }, index * 100);
+                });
+            }, 2100);
+        });
+        
+        // Socket Listeners
+        function setupSocketListeners() {
+            socket.on('session_status', (data) => {
+                updateSessionStatus(data.session, data.status, data.info);
+            });
+            
+            socket.on('qrCode', (data) => {
+                // Usar qrCodeBase64 se disponível, caso contrário usar o caminho da imagem
+                const qrSource = data.qrCodeBase64 || data.qrCode;
+                showQRCode(data.session, qrSource);
+                addLog(`QR Code disponível para ${data.session}`, 'success');
+            });
+            
+            socket.on('log', (data) => {
+                addLog(data.message, data.type || 'info');
+            });
+            
+            socket.on('campaign_progress', (data) => {
+                updateCampaignProgress(data.sent, data.total, data.success);
+            });
+            
+            socket.on('metrics_update', (data) => {
+                updateMetrics(data);
+            });
+        }
+        
+        // Controle de sessões
+        function startSession(session) {
+            addLog(`Iniciando sessão ${session}...`, 'info');
+            fetch(`/api/sessions/${session}/start`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        addLog(`[${session.toUpperCase()}] Sessão iniciada com sucesso`, 'success');
+                        sessionStates[session].startTime = Date.now();
+                    } else {
+                        addLog(`Erro ao iniciar ${session}: ${data.message}`, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro:', error);
+                    addLog(`Erro de conexão ao iniciar ${session}`, 'error');
+                });
+        }
+        
+        function stopSession(session) {
+            addLog(`Parando sessão ${session}...`, 'info');
+            fetch(`/api/sessions/${session}/stop`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        addLog(`[${session.toUpperCase()}] Sessão parada`, 'warning');
+                        updateSessionStatus(session, 'disconnected');
+                    } else {
+                        addLog(`Erro ao parar ${session}: ${data.message}`, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro:', error);
+                    addLog(`Erro de conexão ao parar ${session}`, 'error');
+                });
+        }
+
+        function logoutSession(session) {
+            if (confirm(`Tem certeza que deseja desconectar o WhatsApp da sessão ${session}? Será necessário escanear o QR Code novamente.`)) {
+                addLog(`Fazendo logout da sessão ${session}...`, 'info');
+                fetch(`/api/sessions/${session}/logout`, { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            addLog(`[${session.toUpperCase()}] Logout realizado com sucesso`, 'success');
+                            updateSessionStatus(session, 'disconnected');
+                            // Limpar QR Code se existir
+                            const qrImage = document.getElementById(`${session}-qr-image`);
+                            if (qrImage) qrImage.src = '';
+                        } else {
+                            addLog(`Erro no logout ${session}: ${data.message}`, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Erro:', error);
+                        addLog(`Erro de conexão no logout ${session}`, 'error');
+                    });
+            }
+        }
+        
+        // Atualizar status das sessões
+        function updateSessionStatus(sessionName, status, info = {}) {
+            const statusBadge = document.getElementById(`${sessionName}-status-badge`);
+            
+            const statusConfig = {
+                connected: {
+                    classes: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+                    text: 'Conectado',
+                    icon: 'bg-green-500 status-pulse'
+                },
+                disconnected: {
+                    classes: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300', 
+                    text: 'Desconectado',
+                    icon: 'bg-red-500'
+                },
+                qr_ready: {
+                    classes: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
+                    text: 'QR Code Pronto',
+                    icon: 'bg-yellow-500 animate-pulse'
+                }
+            };
+            
+            const config = statusConfig[status];
+            if (config) {
+                statusBadge.className = `px-4 py-2 ${config.classes} rounded-full text-sm font-medium flex items-center space-x-2 transition-all duration-300`;
+                statusBadge.innerHTML = `
+                    <div class="w-2 h-2 ${config.icon} rounded-full"></div>
+                    <span>${config.text}</span>
+                `;
+                
+                // Mostrar/ocultar QR container
+                const qrContainer = document.getElementById(`${sessionName}-qr-container`);
+                if (status === 'qr_ready') {
+                    qrContainer.classList.remove('hidden');
+                } else {
+                    qrContainer.classList.add('hidden');
+                }
+            }
+            
+            if (info) {
+                sessionStates[sessionName] = { ...sessionStates[sessionName], ...info };
+                
+                // Atualizar última atividade
+                const activityElement = document.getElementById(`${sessionName}-activity`);
+                if (activityElement) {
+                    activityElement.textContent = info.lastActivity || 'Nenhuma';
+                }
+            }
+            
+            updateStats();
+        }
+        
+        // Mostrar QR Code
+        function showQRCode(session, qrData) {
+            const qrImage = document.getElementById(`${session}-qr-image`);
+            if (qrImage && qrData) {
+                // Se qrData é base64, usar diretamente; se é caminho, usar como src
+                if (qrData.startsWith('data:image')) {
+                    qrImage.src = qrData; // Base64 direto
+                } else {
+                    qrImage.src = qrData; // Caminho da imagem
+                }
+                
+                // Mostrar container do QR se estava oculto
+                const qrContainer = qrImage.closest('.bg-gray-50');
+                if (qrContainer) {
+                    qrContainer.style.display = 'block';
+                }
+                
+                console.log(`QR Code atualizado para ${session}`);
+            }
+        }
+        
+        // Logs com cores e animações
+        function addLog(message, type = 'info') {
+            const logs = document.getElementById('system-logs');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            const colors = {
+                info: 'text-blue-400',
+                success: 'text-green-400', 
+                error: 'text-red-400',
+                warning: 'text-yellow-400'
+            };
+            
+            const iconColors = {
+                info: 'bg-blue-400',
+                success: 'bg-green-400',
+                error: 'bg-red-400', 
+                warning: 'bg-yellow-400'
+            };
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = 'flex items-center space-x-2 mb-2 animate-fade-in';
+            logEntry.innerHTML = `
+                <div class="w-2 h-2 ${iconColors[type]} rounded-full ${type === 'info' ? 'animate-pulse' : ''}"></div>
+                <span class="text-gray-500">[${timestamp}]</span>
+                <span class="${colors[type]}">${message}</span>
+            `;
+            
+            logs.appendChild(logEntry);
+            logs.scrollTop = logs.scrollHeight;
+            
+            // Limitar logs a 100 entradas
+            while (logs.children.length > 100) {
+                logs.removeChild(logs.firstChild);
+            }
+        }
+        
+        function clearLogs() {
+            document.getElementById('system-logs').innerHTML = '';
+            addLog('Logs limpos pelo usuário', 'info');
+        }
+        
+        // Campanhas
+        let selectedContacts = [];
+        let allContacts = [];
+        let currentContactsSource = 'file'; // 'contacts', 'file', 'manual'
+        
+        function showContactsFromWhatsApp() {
+            currentContactsSource = 'contacts';
+            hideAllSections();
+            document.getElementById('contacts-section').classList.remove('hidden');
+            loadWhatsAppContacts();
+        }
+        
+        function showFileUpload() {
+            currentContactsSource = 'file';
+            hideAllSections();
+            document.getElementById('file-upload-section').classList.remove('hidden');
+        }
+        
+        function showManualInput() {
+            currentContactsSource = 'manual';
+            hideAllSections();
+            document.getElementById('manual-input-section').classList.remove('hidden');
+        }
+        
+        function hideAllSections() {
+            document.getElementById('contacts-section').classList.add('hidden');
+            document.getElementById('file-upload-section').classList.add('hidden');
+            document.getElementById('manual-input-section').classList.add('hidden');
+        }
+        
+        function loadWhatsAppContacts() {
+            const session = document.getElementById('campaign-session').value;
+            const loading = document.getElementById('contacts-loading');
+            const list = document.getElementById('contacts-list');
+            
+            loading.classList.remove('hidden');
+            list.innerHTML = '';
+            
+            fetch(`/api/sessions/${session}/contacts`)
+                .then(response => response.json())
+                .then(data => {
+                    loading.classList.add('hidden');
+                    
+                    if (data.success) {
+                        allContacts = data.contacts;
+                        displayContacts(allContacts);
+                        addLog(`${data.total} contatos carregados do ${session}`, 'success');
+                    } else {
+                        addLog(`Erro ao carregar contatos: ${data.message}`, 'error');
+                        list.innerHTML = `<div class="text-center py-4 text-red-600 dark:text-red-400">${data.message}</div>`;
+                    }
+                })
+                .catch(error => {
+                    loading.classList.add('hidden');
+                    console.error('Erro:', error);
+                    addLog('Erro de conexão ao carregar contatos', 'error');
+                    list.innerHTML = '<div class="text-center py-4 text-red-600 dark:text-red-400">Erro de conexão</div>';
+                });
+        }
+        
+        function displayContacts(contacts) {
+            const list = document.getElementById('contacts-list');
+            
+            if (contacts.length === 0) {
+                list.innerHTML = '<div class="text-center py-4 text-gray-600 dark:text-gray-400">Nenhum contato encontrado</div>';
+                return;
+            }
+            
+            list.innerHTML = contacts.map(contact => `
+                <div class="flex items-center space-x-3 p-3 bg-white dark:bg-gray-600 rounded-lg border border-gray-200 dark:border-gray-500 hover:border-primary-400 dark:hover:border-primary-500 transition-colors">
+                    <input type="checkbox" id="contact-${contact.id}" class="w-4 h-4 text-primary-600 bg-gray-100 border-gray-300 rounded focus:ring-primary-500 dark:focus:ring-primary-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600" onchange="toggleContact('${contact.id}', '${contact.name}')">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-gray-900 dark:text-white truncate">${contact.name}</p>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">${contact.number}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function filterContacts() {
+            const search = document.getElementById('contact-search').value.toLowerCase();
+            const filtered = allContacts.filter(contact => 
+                contact.name.toLowerCase().includes(search) || 
+                contact.number.includes(search)
+            );
+            displayContacts(filtered);
+        }
+        
+        function toggleContact(contactId, contactName) {
+            const checkbox = document.getElementById(`contact-${contactId}`);
+            
+            if (checkbox.checked) {
+                if (!selectedContacts.includes(contactId)) {
+                    selectedContacts.push(contactId);
+                }
+            } else {
+                selectedContacts = selectedContacts.filter(id => id !== contactId);
+            }
+            
+            updateSelectedCount();
+        }
+        
+        function selectAllContacts() {
+            const checkboxes = document.querySelectorAll('#contacts-list input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = true;
+                const contactId = checkbox.id.replace('contact-', '');
+                if (!selectedContacts.includes(contactId)) {
+                    selectedContacts.push(contactId);
+                }
+            });
+            updateSelectedCount();
+        }
+        
+        function clearSelectedContacts() {
+            const checkboxes = document.querySelectorAll('#contacts-list input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            selectedContacts = [];
+            updateSelectedCount();
+        }
+        
+        function updateSelectedCount() {
+            document.getElementById('selected-count').textContent = `${selectedContacts.length} selecionados`;
+        }
+
+        async function sendCampaign() {
+            const sessionName = document.getElementById('campaign-session').value;
+            const message = document.getElementById('campaign-message').value;
+            
+            if (!message.trim()) {
+                alert('Digite uma mensagem primeiro');
+                return;
+            }
+            
+            let numbersForCampaign = [];
+            let totalCount = 0;
+            
+            // Verificar a origem dos números e preparar a lista adequada
+            if (currentContactsSource === 'contacts') {
+                // Usando contatos do WhatsApp
+                if (selectedContacts.length === 0) {
+                    alert('Nenhum contato selecionado. Selecione contatos do WhatsApp primeiro.');
+                    return;
+                }
+                
+                // Converter IDs dos contatos selecionados para números
+                numbersForCampaign = selectedContacts.map(contactId => {
+                    const contact = allContacts.find(c => c.id === contactId);
+                    return contact ? contact.number : null;
+                }).filter(num => num !== null);
+                
+                totalCount = numbersForCampaign.length;
+                addLog(`Iniciando campanha humanizada via ${sessionName} para ${totalCount} contatos do WhatsApp...`, 'info');
+                
+            } else if (currentContactsSource === 'file') {
+                // Usando arquivo processado
+                if (processedNumbers.length === 0) {
+                    alert('Nenhum número carregado. Faça upload e processe um arquivo primeiro.');
+                    return;
+                }
+                
+                numbersForCampaign = processedNumbers.map(contact => contact.formatted);
+                totalCount = numbersForCampaign.length;
+                addLog(`Iniciando campanha humanizada via ${sessionName} para ${totalCount} números do arquivo...`, 'info');
+                
+            } else if (currentContactsSource === 'manual') {
+                // Usando números digitados manualmente
+                const manualNumbers = document.getElementById('manual-numbers').value;
+                if (!manualNumbers.trim()) {
+                    alert('Digite os números manualmente primeiro.');
+                    return;
+                }
+                
+                numbersForCampaign = manualNumbers.split('\n').map(num => num.trim()).filter(num => num);
+                totalCount = numbersForCampaign.length;
+                addLog(`Iniciando campanha humanizada via ${sessionName} para ${totalCount} números digitados manualmente...`, 'info');
+            }
+            
+            if (numbersForCampaign.length === 0) {
+                alert('Nenhum número válido encontrado para envio.');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/campaigns/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sessionName: sessionName,
+                        message: message,
+                        numbers: numbersForCampaign,
+                        source: currentContactsSource
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addLog(`Campanha humanizada iniciada com sucesso!`, 'success');
+                    document.getElementById('campaign-result').innerHTML = `
+                        <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 mt-4">
+                            <h4 class="font-semibold text-green-900 dark:text-green-100">✅ Campanha Humanizada Iniciada!</h4>
+                            <p class="text-green-700 dark:text-green-300">Total: ${totalCount} números (${currentContactsSource === 'contacts' ? 'Contatos WhatsApp' : currentContactsSource === 'file' ? 'Arquivo' : 'Manual'})</p>
+                            <p class="text-sm text-green-600 dark:text-green-400 mt-2">🤖 Enviando com delays inteligentes e digitação humanizada</p>
+                            <p class="text-xs text-green-500 dark:text-green-500 mt-1">Acompanhe o progresso nos logs em tempo real</p>
+                        </div>
+                    `;
+                    
+                    // Limpar campos após envio
+                    document.getElementById('campaign-message').value = '';
+                    
+                    // Se foram contatos do WhatsApp, limpar seleção
+                    if (currentContactsSource === 'contacts') {
+                        clearSelectedContacts();
+                    }
+                    
+                } else {
+                    throw new Error(result.message);
+                }
+                
+            } catch (error) {
+                addLog(`Erro na campanha: ${error.message}`, 'error');
+                alert('Erro ao enviar campanha: ' + error.message);
+            }
+        }
+        
+        function handleCampaignResponse(data) {
+            if (data.success) {
+                addLog('Campanha iniciada com sucesso!', 'success');
+                showCampaignResult(data.message, 'success');
+            } else {
+                addLog(`Erro na campanha: ${data.message}`, 'error');
+                showCampaignResult(data.message, 'error');
+                campaignActive = false;
+            }
+        }
+        
+        function handleCampaignError(error) {
+            console.error('Erro:', error);
+            addLog('Erro de conexão ao enviar campanha', 'error');
+            campaignActive = false;
+        }
+        
+        function updateCampaignProgress(sent, total, success) {
+            addLog(`Progresso: ${sent}/${total} enviados (${success} sucessos)`, 'info');
+            
+            if (sent >= total) {
+                campaignActive = false;
+                addLog('Campanha finalizada!', 'success');
+            }
+        }
+        
+        function showCampaignResult(message, type) {
+            const result = document.getElementById('campaign-result');
+            const colors = {
+                success: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700',
+                error: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-700'
+            };
+            
+            result.className = `mt-4 p-4 rounded-xl border ${colors[type]} animate-fade-in`;
+            result.textContent = message;
+        }
+        
+        // Sistema de Upload Melhorado
+        let currentFileId = null;
+        let processedNumbers = [];
+
+        // Handle file upload
+        document.getElementById('campaign-file').addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const formData = new FormData();
+            formData.append('numbersFile', file);
+            
+            try {
+                addLog('Fazendo upload do arquivo...', 'info');
+                
+                const response = await fetch('/api/upload/numbers', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentFileId = result.fileInfo.id;
+                    showUploadResult(result.fileInfo);
+                    addLog(`Upload concluído: ${result.fileInfo.name}`, 'success');
+                } else {
+                    throw new Error(result.message);
+                }
+                
+            } catch (error) {
+                addLog(`Erro no upload: ${error.message}`, 'error');
+                alert('Erro ao fazer upload: ' + error.message);
+            }
+        });
+
+        function showUploadResult(fileInfo) {
+            const uploadResult = document.getElementById('upload-result');
+            const filename = document.getElementById('upload-filename');
+            const filesize = document.getElementById('upload-filesize');
+            
+            filename.textContent = fileInfo.name;
+            filesize.textContent = `${fileInfo.size} • ${fileInfo.type}`;
+            
+            uploadResult.classList.remove('hidden');
+            document.getElementById('processing-result').classList.add('hidden');
+        }
+
+        async function processFile() {
+            if (!currentFileId) {
+                alert('Nenhum arquivo para processar');
+                return;
+            }
+            
+            try {
+                addLog('Processando arquivo...', 'info');
+                
+                const response = await fetch(`/api/upload/process/${currentFileId}`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    processedNumbers = result.data.numbers;
+                    showProcessingResult(result.data);
+                    addLog(`Processamento concluído: ${result.data.validNumbers} números válidos`, 'success');
+                } else {
+                    throw new Error(result.message);
+                }
+                
+            } catch (error) {
+                addLog(`Erro no processamento: ${error.message}`, 'error');
+                alert('Erro ao processar: ' + error.message);
+            }
+        }
+
+        function showProcessingResult(data) {
+            const processingResult = document.getElementById('processing-result');
+            const validCount = document.getElementById('valid-count');
+            const numbersPreview = document.getElementById('numbers-preview');
+            const showMoreBtn = document.getElementById('show-more-numbers');
+            const errorsSection = document.getElementById('errors-section');
+            const errorCount = document.getElementById('error-count');
+            const errorsPreview = document.getElementById('errors-preview');
+            
+            // Mostrar números válidos
+            validCount.textContent = `${data.validNumbers} números`;
+            
+            numbersPreview.innerHTML = '';
+            data.numbers.forEach((contact, index) => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded border';
+                div.innerHTML = `
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 bg-green-100 dark:bg-green-800 rounded-full flex items-center justify-center text-xs font-medium text-green-700 dark:text-green-200">
+                            ${index + 1}
+                        </div>
+                        <div>
+                            <p class="font-medium text-gray-900 dark:text-white">${contact.name}</p>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">${contact.displayNumber || contact.original}</p>
+                        </div>
+                    </div>
+                    <i data-lucide="check-circle" class="w-4 h-4 text-green-500"></i>
+                `;
+                numbersPreview.appendChild(div);
+            });
+            
+            // Todos os números são exibidos automaticamente
+            // Ocultar botão "ver mais" pois não é mais necessário
+            showMoreBtn.classList.add('hidden');
+            
+            // Mostrar erros se houver
+            if (data.errors > 0) {
+                errorCount.textContent = `${data.errors} erros`;
+                errorsPreview.innerHTML = '';
+                
+                data.errorSample.forEach(error => {
+                    const div = document.createElement('div');
+                    div.className = 'flex items-center justify-between p-2 bg-red-50 dark:bg-red-900/30 rounded border border-red-200 dark:border-red-800';
+                    div.innerHTML = `
+                        <div>
+                            <p class="font-medium text-red-900 dark:text-red-100">Linha ${error.line}</p>
+                            <p class="text-sm text-red-700 dark:text-red-300">${error.original}</p>
+                        </div>
+                        <span class="text-xs text-red-600 dark:text-red-400">${error.error}</span>
+                    `;
+                    errorsPreview.appendChild(div);
+                });
+                
+                errorsSection.classList.remove('hidden');
+            }
+            
+            processingResult.classList.remove('hidden');
+            
+            // Recriar ícones Lucide
+            lucide.createIcons();
+        }
+
+        function showAllNumbers() {
+            // Esta função não é mais necessária pois todos os números já são exibidos
+            addLog('Todos os números já estão sendo exibidos', 'info');
+        }
+
+        // Atualizar estatísticas
+        function updateStats() {
+            const totalMessages = sessionStates.sales.messages + sessionStates.support.messages;
+            const totalSales = sessionStates.sales.sales || 0;
+            
+            // Simular dados realísticos
+            document.getElementById('messages-today').textContent = totalMessages || Math.floor(Math.random() * 1000) + 500;
+            document.getElementById('sales-today').textContent = `R$ ${(totalSales/1000).toFixed(1)}k` || `R$ ${(Math.random() * 20 + 5).toFixed(1)}k`;
+            document.getElementById('conversion-rate').textContent = `${(Math.random() * 10 + 15).toFixed(1)}%`;
+            document.getElementById('response-time').textContent = `${(Math.random() * 2 + 0.5).toFixed(1)}s`;
+        }
+        
+        function updateMetrics(data) {
+            if (data.session) {
+                sessionStates[data.session] = { ...sessionStates[data.session], ...data };
+                updateStats();
+            }
+        }
+        
+        // Atualizar uptime das sessões
+        function startMetricsUpdate() {
+            setInterval(() => {
+                ['sales', 'support'].forEach(session => {
+                    if (sessionStates[session].status === 'connected' && sessionStates[session].startTime) {
+                        const uptime = Date.now() - sessionStates[session].startTime;
+                        const hours = Math.floor(uptime / 3600000);
+                        const minutes = Math.floor((uptime % 3600000) / 60000);
+                        const seconds = Math.floor((uptime % 60000) / 1000);
+                        
+                        const uptimeElement = document.getElementById(`${session}-uptime`);
+                        if (uptimeElement) {
+                            uptimeElement.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                        }
+                    }
+                });
+            }, 1000);
+        }
+        
+        // Atualizar status das sessões via API
+        function startSessionStatusUpdate() {
+            setInterval(async () => {
+                try {
+                    const response = await fetch('/api/sessions/status');
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        Object.keys(data.sessions).forEach(sessionName => {
+                            const sessionData = data.sessions[sessionName];
+                            let currentStatus = sessionData.status;
+                            
+                            // Lógica melhorada para determinar status real
+                            if (sessionData.client === 'active' && sessionData.status === 'connected') {
+                                currentStatus = 'connected';
+                            } else if (sessionData.status === 'qr_ready' && sessionData.qrCode) {
+                                currentStatus = 'qr_ready';
+                                // Mostrar QR Code se disponível
+                                if (sessionData.qrCode) {
+                                    showQRCode(sessionName, sessionData.qrCode);
+                                }
+                            } else {
+                                currentStatus = 'disconnected';
+                            }
+                            
+                            // Atualizar status local apenas se diferente
+                            if (sessionStates[sessionName].status !== currentStatus) {
+                                console.log(`Status da sessão ${sessionName} atualizado: ${sessionStates[sessionName].status} -> ${currentStatus}`);
+                                updateSessionStatus(sessionName, currentStatus);
+                                addLog(`Status da sessão ${sessionName}: ${currentStatus}`, currentStatus === 'connected' ? 'success' : 'warning');
+                            }
+                            
+                            // Atualizar métricas se conectado
+                            if (currentStatus === 'connected' && sessionData.lastActivity) {
+                                const activityElement = document.getElementById(`${sessionName}-activity`);
+                                if (activityElement) {
+                                    const lastActivity = new Date(sessionData.lastActivity);
+                                    activityElement.textContent = lastActivity.toLocaleTimeString();
+                                }
+                                
+                                const uptimeElement = document.getElementById(`${sessionName}-uptime`);
+                                if (uptimeElement && sessionData.uptime) {
+                                    const hours = Math.floor(sessionData.uptime / (1000 * 60 * 60));
+                                    const minutes = Math.floor((sessionData.uptime % (1000 * 60 * 60)) / (1000 * 60));
+                                    const seconds = Math.floor((sessionData.uptime % (1000 * 60)) / 1000);
+                                    uptimeElement.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                                }
+                            }
+                        });
+                    }
+                } catch (error) {
+                    console.error('Erro ao atualizar status das sessões:', error);
+                }
+            }, 15000); // Verificar a cada 15 segundos para ser mais responsivo
+        }
+        
+        // Inicializar logs
+        addLog('Sistema WhatsApp Business Hub inicializado', 'success');
+        addLog('Interface premium carregada', 'info');
+        addLog('Aguardando conexões das sessões...', 'info');
+        
+        // Inicializar seção de campanhas com upload de arquivo
+        showFileUpload();
+        
+        // Inicializar atualização automática de status
+        startSessionStatusUpdate();
+        addLog('Sistema de monitoramento de sessões ativo', 'info');
+        
+        // ===== FUNÇÕES PARA EXPORTAÇÃO DE CONTATOS DO WHATSAPP =====
+        
+        let selectedExportFormat = 'csv';
+        
+        // Definir formato de exportação
+        function setExportFormat(format) {
+            selectedExportFormat = format;
+            
+            // Atualizar visual dos botões
+            document.querySelectorAll('.export-format-btn').forEach(btn => {
+                btn.classList.remove('active', 'bg-teal-50', 'dark:bg-teal-900/30', 'text-teal-700', 'dark:text-teal-300', 'border-teal-200', 'dark:border-teal-700');
+                btn.classList.add('bg-gray-50', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300', 'border-gray-200', 'dark:border-gray-600');
+            });
+            
+            const selectedBtn = document.querySelector(`[data-format="${format}"]`);
+            if (selectedBtn) {
+                selectedBtn.classList.remove('bg-gray-50', 'dark:bg-gray-700', 'text-gray-700', 'dark:text-gray-300', 'border-gray-200', 'dark:border-gray-600');
+                selectedBtn.classList.add('active', 'bg-teal-50', 'dark:bg-teal-900/30', 'text-teal-700', 'dark:text-teal-300', 'border-teal-200', 'dark:border-teal-700');
+            }
+            
+            console.log(`Formato de exportação selecionado: ${format}`);
+        }
+        
+        // Exportar contatos do WhatsApp
+        async function exportWhatsAppContacts() {
+            const sessionName = document.getElementById('export-session').value;
+            const format = selectedExportFormat;
+            
+            addLog(`Verificando status da sessão ${sessionName}...`, 'info');
+            
+            // Verificar status real da sessão via API
+            try {
+                const statusResponse = await fetch('/api/sessions/status');
+                const statusData = await statusResponse.json();
+                
+                if (statusData.success) {
+                    const sessionStatus = statusData.sessions[sessionName];
+                    
+                    // Aceitar vários status como válidos para exportação
+                    const validStatuses = ['connected', 'inchat', 'qrreadsuccess'];
+                    const isSessionValid = sessionStatus && 
+                                         validStatuses.includes(sessionStatus.status.toLowerCase()) && 
+                                         sessionStatus.client;
+                    
+                    if (!isSessionValid) {
+                        showAlert(`Erro: Sessão ${sessionName} não está conectada!\nStatus atual: ${sessionStatus?.status || 'desconhecido'}`, 'error');
+                        addLog(`Sessão ${sessionName} não conectada - Status: ${sessionStatus?.status || 'desconhecido'}`, 'error');
+                        return;
+                    }
+                    
+                    addLog(`Sessão ${sessionName} confirmada como conectada - Iniciando exportação...`, 'success');
+                } else {
+                    showAlert('Erro ao verificar status das sessões', 'error');
+                    return;
+                }
+            } catch (error) {
+                console.error('Erro ao verificar status:', error);
+                showAlert('Erro ao verificar status das sessões', 'error');
+                return;
+            }
+            
+            addLog(`Iniciando exportação de contatos da sessão ${sessionName} em formato ${format}...`, 'info');
+            
+            try {
+                // Fazer download direto
+                const url = `/api/export/whatsapp-contacts/${sessionName}?format=${format}`;
+                
+                // Criar elemento de download temporário
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = ''; // O servidor define o nome do arquivo
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // Mostrar resultado de sucesso
+                const resultDiv = document.getElementById('export-result');
+                const messageDiv = document.getElementById('export-message');
+                
+                messageDiv.textContent = `Contatos da sessão ${sessionName} exportados em formato ${format.toUpperCase()}`;
+                resultDiv.classList.remove('hidden');
+                
+                // Ocultar resultado após 5 segundos
+                setTimeout(() => {
+                    resultDiv.classList.add('hidden');
+                }, 5000);
+                
+                addLog(`Exportação de contatos ${sessionName} concluída em formato ${format}`, 'success');
+                
+            } catch (error) {
+                console.error('Erro na exportação:', error);
+                showAlert('Erro ao exportar contatos: ' + error.message, 'error');
+                addLog(`Erro na exportação de contatos: ${error.message}`, 'error');
+            }
+        }
+        
+        // Mostrar estatísticas dos contatos do WhatsApp
+        async function showWhatsAppStats() {
+            const sessionName = document.getElementById('export-session').value;
+            
+            addLog(`Verificando status da sessão ${sessionName}...`, 'info');
+            
+            // Verificar status real da sessão via API
+            try {
+                const statusResponse = await fetch('/api/sessions/status');
+                const statusData = await statusResponse.json();
+                
+                if (statusData.success) {
+                    const sessionStatus = statusData.sessions[sessionName];
+                    
+                    // Aceitar vários status como válidos para estatísticas
+                    const validStatuses = ['connected', 'inchat', 'qrreadsuccess'];
+                    const isSessionValid = sessionStatus && 
+                                         validStatuses.includes(sessionStatus.status.toLowerCase()) && 
+                                         sessionStatus.client;
+                    
+                    if (!isSessionValid) {
+                        showAlert(`Erro: Sessão ${sessionName} não está conectada!\nStatus atual: ${sessionStatus?.status || 'desconhecido'}`, 'error');
+                        addLog(`Sessão ${sessionName} não conectada - Status: ${sessionStatus?.status || 'desconhecido'}`, 'error');
+                        return;
+                    }
+                    
+                    addLog(`Sessão ${sessionName} confirmada como conectada - Obtendo estatísticas...`, 'success');
+                } else {
+                    showAlert('Erro ao verificar status das sessões', 'error');
+                    return;
+                }
+            } catch (error) {
+                console.error('Erro ao verificar status:', error);
+                showAlert('Erro ao verificar status das sessões', 'error');
+                return;
+            }
+            
+            addLog(`Analisando contatos da sessão ${sessionName}...`, 'info');
+            
+            try {
+                const response = await fetch(`/api/stats/whatsapp-contacts/${sessionName}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const statsDiv = document.getElementById('whatsapp-stats');
+                    const contentDiv = document.getElementById('stats-content');
+                    
+                    const stats = data.estatisticas;
+                    
+                    contentDiv.innerHTML = `
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                            <div class="bg-white dark:bg-gray-800 p-3 rounded-lg text-center">
+                                <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">${stats.total_contatos}</div>
+                                <div class="text-xs text-gray-600 dark:text-gray-400">Total Contatos</div>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 p-3 rounded-lg text-center">
+                                <div class="text-2xl font-bold text-green-600 dark:text-green-400">${stats.status_verificacao.verificados}</div>
+                                <div class="text-xs text-gray-600 dark:text-gray-400">Verificados</div>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 p-3 rounded-lg text-center">
+                                <div class="text-2xl font-bold text-purple-600 dark:text-purple-400">${stats.nomes.com_nome}</div>
+                                <div class="text-xs text-gray-600 dark:text-gray-400">Com Nome</div>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 p-3 rounded-lg text-center">
+                                <div class="text-2xl font-bold text-orange-600 dark:text-orange-400">${stats.total_grupos}</div>
+                                <div class="text-xs text-gray-600 dark:text-gray-400">Grupos</div>
+                            </div>
+                        </div>
+                        
+                        ${stats.top_ddds.length > 0 ? `
+                        <div class="mb-4">
+                            <h5 class="font-semibold mb-2">📍 Top DDDs:</h5>
+                            <div class="space-y-2">
+                                ${stats.top_ddds.slice(0, 5).map(ddd => `
+                                    <div class="flex justify-between items-center bg-white dark:bg-gray-800 p-2 rounded">
+                                        <span>DDD ${ddd.ddd}</span>
+                                        <span class="font-medium">${ddd.count} (${ddd.porcentagem}%)</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+                        
+                        ${stats.amostra_contatos.length > 0 ? `
+                        <div>
+                            <h5 class="font-semibold mb-2">👥 Amostra de Contatos:</h5>
+                            <div class="space-y-2 max-h-48 overflow-y-auto">
+                                ${stats.amostra_contatos.map(contact => `
+                                    <div class="flex justify-between items-center bg-white dark:bg-gray-800 p-2 rounded text-sm">
+                                        <div>
+                                            <div class="font-medium">${contact.nome}</div>
+                                            <div class="text-gray-600 dark:text-gray-400">${contact.telefone_formatado}</div>
+                                        </div>
+                                        <span class="text-xs ${contact.verificado === 'Sim' ? 'text-green-600' : 'text-gray-500'}">${contact.verificado === 'Sim' ? '✓' : '○'}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+                    `;
+                    
+                    statsDiv.classList.remove('hidden');
+                    addLog(`Estatísticas carregadas: ${stats.total_contatos} contatos da sessão ${sessionName}`, 'success');
+                    
+                } else {
+                    showAlert('Erro ao obter estatísticas: ' + data.message, 'error');
+                    addLog(`Erro ao obter estatísticas: ${data.message}`, 'error');
+                }
+                
+            } catch (error) {
+                console.error('Erro ao obter estatísticas:', error);
+                showAlert('Erro ao obter estatísticas: ' + error.message, 'error');
+                addLog(`Erro ao obter estatísticas: ${error.message}`, 'error');
+            }
+        }
+        
+        // Função auxiliar para mostrar alertas
+        function showAlert(message, type = 'info') {
+            // Criar elemento de alerta temporário
+            const alert = document.createElement('div');
+            alert.className = `fixed top-4 right-4 p-4 rounded-xl shadow-lg z-50 transition-all duration-300 ${
+                type === 'error' ? 'bg-red-500 text-white' : 
+                type === 'success' ? 'bg-green-500 text-white' : 
+                'bg-blue-500 text-white'
+            }`;
+            alert.textContent = message;
+            
+            document.body.appendChild(alert);
+            
+            // Remover após 5 segundos
+            setTimeout(() => {
+                alert.style.opacity = '0';
+                alert.style.transform = 'translateX(100%)';
+                setTimeout(() => document.body.removeChild(alert), 300);
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

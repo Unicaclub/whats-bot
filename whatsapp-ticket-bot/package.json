@@ -1,0 +1,40 @@
+{
+  "name": "whatsapp-ticket-bot",
+  "version": "1.0.0",
+  "description": "Bot WhatsApp para vendas de ingressos de casa de show",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js",
+    "install-deps": "npm install @wppconnect-team/wppconnect express multer openai dotenv"
+  },
+  "keywords": [
+    "whatsapp",
+    "bot",
+    "tickets",
+    "ingressos",
+    "casa-de-show",
+    "wppconnect"
+  ],
+  "author": "Bot Ingressos Team",
+  "license": "MIT",
+  "dependencies": {
+    "@puppeteer/browsers": "^2.10.6",
+    "@wppconnect-team/wppconnect": "^1.37.3",
+    "csv-parser": "^3.2.0",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "multer": "^1.4.5-lts.1",
+    "openai": "^4.104.0",
+    "pg": "^8.16.3",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

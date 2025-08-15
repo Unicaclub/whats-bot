@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎫 WhatsApp Multi-Sessão - Casa de Show</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container { 
+            max-width: 1600px; 
+            margin: 0 auto; 
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header .subtitle {
+            font-size: 1.1em;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+        
+        .header .ai-status {
+            background: rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            display: inline-block;
+            font-size: 0.9em;
+        }
+        
+        .sessions-grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 25px; 
+            margin-bottom: 30px; 
+        }
+        
+        .session-card { 
+            background: white; 
+            padding: 25px; 
+            border-radius: 15px; 
+            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .session-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(45deg, #4299e1, #667eea);
+        }
+        
+        .session-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 20px; 
+        }
+        
+        .session-header h2 {
+            font-size: 1.4em;
+            color: #2d3748;
+        }
+        
+        .status { 
+            padding: 8px 16px; 
+            border-radius: 20px; 
+            font-weight: bold; 
+            text-align: center;
+            font-size: 0.85em;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .status.connected { 
+            background: linear-gradient(45deg, #48bb78, #38a169);
+            color: white;
+            animation: pulse 2s infinite;
+        }
+        
+        .status.disconnected { 
+            background: linear-gradient(45deg, #f56565, #e53e3e);
+            color: white;
+        }
+        
+        .status.qr_ready { 
+            background: linear-gradient(45deg, #ed8936, #dd6b20);
+            color: white;
+            animation: blink 1s infinite;
+        }
+        
+        .status.error { 
+            background: linear-gradient(45deg, #f56565, #e53e3e);
+            color: white;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.7; }
+        }
+        
+        .qr-container { 
+            text-align: center; 
+            margin: 20px 0;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 10px;
+            border: 2px dashed #cbd5e0;
+        }
+        
+        .qr-code { 
+            max-width: 200px; 
+            border: 3px solid #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .button { 
+            background: linear-gradient(45deg, #4299e1, #3182ce);
+            color: white; 
+            padding: 12px 24px; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            margin: 5px;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(66, 153, 225, 0.3);
+        }
+        
+        .button:hover { 
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(66, 153, 225, 0.4);
+        }
+        
+        .button.danger { 
+            background: linear-gradient(45deg, #f56565, #e53e3e);
+            box-shadow: 0 2px 8px rgba(245, 101, 101, 0.3);
+        }
+        
+        .button.danger:hover { 
+            box-shadow: 0 4px 15px rgba(245, 101, 101, 0.4);
+        }
+        
+        .button.success { 
+            background: linear-gradient(45deg, #48bb78, #38a169);
+            box-shadow: 0 2px 8px rgba(72, 187, 120, 0.3);
+        }
+        
+        .button.success:hover { 
+            box-shadow: 0 4px 15px rgba(72, 187, 120, 0.4);
+        }
+        
+        .button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .card { 
+            background: white; 
+            padding: 25px; 
+            margin: 20px 0; 
+            border-radius: 15px; 
+            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .card h2 {
+            color: #2d3748;
+            margin-bottom: 20px;
+            font-size: 1.4em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .feature-card {
+            background: #f7fafc;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #4299e1;
+        }
+        
+        .feature-card h4 {
+            color: #2d3748;
+            margin-bottom: 8px;
+        }
+        
+        .feature-card p {
+            color: #4a5568;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .stat-card {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .stat-number {
+            font-size: 2.2em;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+        
+        .form-group {
+            margin: 15px 0;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+        
+        select, textarea, input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+        
+        select:focus, textarea:focus {
+            outline: none;
+            border-color: #4299e1;
+            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+        }
+        
+        textarea {
+            height: 120px;
+            resize: vertical;
+        }
+        
+        input[type="file"] {
+            background: #f7fafc;
+            border: 2px dashed #cbd5e0;
+            cursor: pointer;
+        }
+        
+        input[type="file"]:hover {
+            border-color: #4299e1;
+            background: #ebf8ff;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 15px 0;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(45deg, #48bb78, #38a169);
+            width: 0%;
+            transition: width 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(
+                90deg,
+                transparent,
+                rgba(255,255,255,0.3),
+                transparent
+            );
+            animation: progress-shine 2s infinite;
+        }
+        
+        @keyframes progress-shine {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        
+        .logs { 
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px; 
+            border-radius: 10px; 
+            max-height: 400px; 
+            overflow-y: auto; 
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            box-shadow: inset 0 2px 8px rgba(0,0,0,0.3);
+        }
+        
+        .logs::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .logs::-webkit-scrollbar-track {
+            background: #4a5568;
+            border-radius: 4px;
+        }
+        
+        .logs::-webkit-scrollbar-thumb {
+            background: #718096;
+            border-radius: 4px;
+        }
+        
+        .campaign-result, .upload-result {
+            margin: 15px 0;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #4299e1;
+            background: #ebf8ff;
+            display: none;
+        }
+        
+        .campaign-result.success, .upload-result.success {
+            border-left-color: #48bb78;
+            background: #f0fff4;
+            color: #2f855a;
+        }
+        
+        .campaign-result.error, .upload-result.error {
+            border-left-color: #f56565;
+            background: #fed7d7;
+            color: #c53030;
+        }
+        
+        .template-buttons {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+        
+        .template-btn {
+            background: #edf2f7;
+            color: #4a5568;
+            padding: 8px 16px;
+            border: 1px solid #cbd5e0;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .template-btn:hover {
+            background: #4299e1;
+            color: white;
+            border-color: #3182ce;
+        }
+        
+        .hidden { display: none; }
+        
+        .loading {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #4299e1;
+            font-weight: 600;
+        }
+        
+        .loading::before {
+            content: '';
+            width: 16px;
+            height: 16px;
+            border: 2px solid #4299e1;
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .session-info {
+            background: #f7fafc;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        
+        .session-info p {
+            margin: 5px 0;
+            font-size: 0.9em;
+            color: #4a5568;
+        }
+        
+        .session-info strong {
+            color: #2d3748;
+        }
+        
+        @media (max-width: 768px) {
+            .container { padding: 10px; }
+            .sessions-grid { grid-template-columns: 1fr; }
+            .header h1 { font-size: 2em; }
+            .stats-grid { grid-template-columns: 1fr 1fr; }
+            .features-grid { grid-template-columns: 1fr; }
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border-left: 4px solid #4299e1;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            max-width: 300px;
+        }
+        
+        .notification.show {
+            transform: translateX(0);
+        }
+        
+        .notification.success {
+            border-left-color: #48bb78;
+        }
+        
+        .notification.error {
+            border-left-color: #f56565;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎫 WhatsApp Multi-Sessão - Casa de Show</h1>
+            <p class="subtitle">Sistema Inteligente de Vendas e Suporte com IA</p>
+            <div class="ai-status" id="aiStatus">
+                <span class="loading">Conectando OpenAI...</span>
+            </div>
+        </div>
+
+        <!-- Estatísticas Globais -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-number" id="totalMessages">0</span>
+                <span class="stat-label">Mensagens Hoje</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number" id="totalSales">R$ 0</span>
+                <span class="stat-label">Vendas Hoje</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number" id="totalTickets">0</span>
+                <span class="stat-label">Ingressos Vendidos</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number" id="totalSupport">0</span>
+                <span class="stat-label">Suporte Ativo</span>
+            </div>
+        </div>
+
+        <!-- Sessões do WhatsApp -->
+        <div class="sessions-grid">
+            <!-- Sessão de Vendas -->
+            <div class="session-card">
+                <div class="session-header">
+                    <h2>💰 Bot de Vendas</h2>
+                    <span class="status disconnected" id="status-sales">Desconectado</span>
+                </div>
+                
+                <div class="session-info">
+                    <p><strong>Modo:</strong> Vendas de Ingressos e PIX</p>
+                    <p><strong>Funcionalidades:</strong> Catálogo, Carrinho, Pagamentos</p>
+                    <p><strong>IA:</strong> GPT-4 para vendas inteligentes</p>
+                    <p id="sales-metrics"><strong>Métricas:</strong> Aguardando conexão...</p>
+                </div>
+                
+                <div class="qr-container">
+                    <div id="qr-sales" class="qr-placeholder">
+                        <p>QR Code aparecerá aqui quando iniciado</p>
+                    </div>
+                </div>
+                
+                <div class="button-group">
+                    <button class="button success" onclick="startSession('sales')">
+                        🚀 Iniciar Vendas
+                    </button>
+                    <button class="button danger" onclick="stopSession('sales')">
+                        ⏹️ Parar
+                    </button>
+                    <button class="button" onclick="restartSession('sales')">
+                        🔄 Reiniciar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sessão de Suporte -->
+            <div class="session-card">
+                <div class="session-header">
+                    <h2>🎧 Bot de Suporte</h2>
+                    <span class="status disconnected" id="status-support">Desconectado</span>
+                </div>
+                
+                <div class="session-info">
+                    <p><strong>Modo:</strong> Atendimento e Suporte</p>
+                    <p><strong>Funcionalidades:</strong> FAQ, Assistência, Escalação</p>
+                    <p><strong>IA:</strong> GPT-4 para suporte inteligente</p>
+                    <p id="support-metrics"><strong>Métricas:</strong> Aguardando conexão...</p>
+                </div>
+                
+                <div class="qr-container">
+                    <div id="qr-support" class="qr-placeholder">
+                        <p>QR Code aparecerá aqui quando iniciado</p>
+                    </div>
+                </div>
+                
+                <div class="button-group">
+                    <button class="button success" onclick="startSession('support')">
+                        🚀 Iniciar Suporte
+                    </button>
+                    <button class="button danger" onclick="stopSession('support')">
+                        ⏹️ Parar
+                    </button>
+                    <button class="button" onclick="restartSession('support')">
+                        🔄 Reiniciar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recursos do Sistema -->
+        <div class="card">
+            <h2>🎯 Recursos Implementados</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <h4>🛒 Sistema de Vendas</h4>
+                    <p>Catálogo de ingressos, carrinho inteligente, descontos automáticos e geração de PIX</p>
+                </div>
+                <div class="feature-card">
+                    <h4>🤖 IA Integrada</h4>
+                    <p>OpenAI GPT-4 para vendas e suporte personalizados com contexto de casa de shows</p>
+                </div>
+                <div class="feature-card">
+                    <h4>💳 Pagamento PIX</h4>
+                    <p>Geração automática de códigos PIX com valores calculados e desconto para grupos</p>
+                </div>
+                <div class="feature-card">
+                    <h4>📊 Multi-Sessão</h4>
+                    <p>Bots independentes para vendas e suporte com números WhatsApp separados</p>
+                </div>
+                <div class="feature-card">
+                    <h4>📈 Campanhas</h4>
+                    <p>Sistema de upload CSV/TXT para campanhas em massa com templates personalizados</p>
+                </div>
+                <div class="feature-card">
+                    <h4>⚡ Tempo Real</h4>
+                    <p>Interface web com Socket.IO para atualizações instantâneas de status</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sistema de Campanhas -->
+        <div class="card">
+            <h2>📢 Campanhas em Massa</h2>
+            
+            <div class="form-group">
+                <label>Sessão para Envio:</label>
+                <select id="campaignSession">
+                    <option value="sales">Bot de Vendas</option>
+                    <option value="support">Bot de Suporte</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Arquivo de Contatos (CSV/TXT):</label>
+                <input type="file" id="contactsFile" accept=".csv,.txt" />
+                <small style="color: #666; display: block; margin-top: 5px;">
+                    Formato: uma linha por contato (numero,nome) ou apenas números
+                </small>
+            </div>
+            
+            <div class="form-group">
+                <label>Template da Mensagem:</label>
+                <div class="template-buttons">
+                    <button class="template-btn" onclick="setTemplate('promocao')">🎟️ Promoção</button>
+                    <button class="template-btn" onclick="setTemplate('evento')">🎪 Novo Evento</button>
+                    <button class="template-btn" onclick="setTemplate('lembrete')">⏰ Lembrete</button>
+                    <button class="template-btn" onclick="setTemplate('custom')">✏️ Personalizado</button>
+                </div>
+                <textarea id="messageTemplate" placeholder="Digite sua mensagem aqui. Use {nome} para personalizar com o nome do contato.">
+🎫 Olá {nome}! Temos uma promoção especial para você!
+
+🎪 Show imperdível chegando!
+💰 Desconto especial: 20% OFF
+📅 Garante já o seu ingresso!
+
+Responda QUERO para mais detalhes! 🚀
+                </textarea>
+            </div>
+            
+            <div class="form-group">
+                <button class="button success" onclick="startCampaign()">
+                    📤 Iniciar Campanha
+                </button>
+                <button class="button danger" onclick="stopCampaign()" id="stopCampaignBtn" style="display: none;">
+                    ⏹️ Parar Campanha
+                </button>
+            </div>
+            
+            <div class="campaign-result" id="campaignResult"></div>
+            
+            <div id="campaignProgress" style="display: none;">
+                <h4>Progresso da Campanha:</h4>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <p id="progressText">0 / 0 enviados</p>
+            </div>
+        </div>
+
+        <!-- Logs e Monitoramento -->
+        <div class="card">
+            <h2>📊 Logs do Sistema</h2>
+            <div class="button-group">
+                <button class="button" onclick="clearLogs()">🗑️ Limpar Logs</button>
+                <button class="button" onclick="downloadLogs()">💾 Download Logs</button>
+                <button class="button" onclick="toggleAutoScroll()">
+                    <span id="autoScrollText">📜 Auto-scroll ON</span>
+                </button>
+            </div>
+            <div class="logs" id="logs">
+                <div style="color: #4299e1; font-weight: bold;">
+                    === Sistema WhatsApp Multi-Sessão Iniciado ===
+                </div>
+                <div>
+                    ⏰ [<span id="startTime"></span>] Sistema pronto para conexões
+                </div>
+                <div>
+                    🤖 [INFO] IA OpenAI configurada e pronta
+                </div>
+                <div>
+                    💰 [INFO] Sistema de pagamento PIX ativo
+                </div>
+                <div>
+                    📊 [INFO] Interface web conectada via Socket.IO
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notificações Toast -->
+    <div class="notification" id="notification">
+        <div id="notificationContent"></div>
+    </div>
+
+    <script>
+        // Conexão Socket.IO
+        const socket = io();
+        
+        // Estado global
+        let sessionStates = {
+            sales: { status: 'disconnected', messages: 0, sales: 0 },
+            support: { status: 'disconnected', messages: 0, tickets: 0 }
+        };
+        
+        let campaignActive = false;
+        let autoScroll = true;
+        
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeTimestamp();
+            checkAIStatus();
+            setupSocketListeners();
+            updateStats();
+        });
+        
+        // Configurar listeners do Socket.IO
+        function setupSocketListeners() {
+            // Status das sessões
+            socket.on('session_status', (data) => {
+                updateSessionStatus(data.session, data.status, data.info);
+            });
+            
+            // QR Codes
+            socket.on('qr_code', (data) => {
+                showQRCode(data.session, data.qr);
+            });
+            
+            // Logs em tempo real
+            socket.on('log', (data) => {
+                addLog(data.message, data.type || 'info');
+            });
+            
+            // Progresso de campanha
+            socket.on('campaign_progress', (data) => {
+                updateCampaignProgress(data.sent, data.total, data.success);
+            });
+            
+            // Métricas
+            socket.on('metrics_update', (data) => {
+                updateMetrics(data);
+            });
+            
+            // Notificações
+            socket.on('notification', (data) => {
+                showNotification(data.message, data.type);
+            });
+        }
+        
+        // Controle de sessões
+        function startSession(session) {
+            showNotification(`Iniciando ${session === 'sales' ? 'vendas' : 'suporte'}...`, 'info');
+            fetch(`/api/session/${session}/start`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        addLog(`[${session.toUpperCase()}] Sessão iniciada com sucesso`);
+                        showNotification(data.message, 'success');
+                    } else {
+                        showNotification(data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro:', error);
+                    showNotification('Erro ao iniciar sessão', 'error');
+                });
+        }
+        
+        function stopSession(session) {
+            fetch(`/api/session/${session}/stop`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        addLog(`[${session.toUpperCase()}] Sessão parada`);
+                        updateSessionStatus(session, 'disconnected');
+                        showNotification(data.message, 'success');
+                    } else {
+                        showNotification(data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro:', error);
+                    showNotification('Erro ao parar sessão', 'error');
+                });
+        }
+        
+        function restartSession(session) {
+            stopSession(session);
+            setTimeout(() => startSession(session), 2000);
+        }
+        
+        // Atualizar status das sessões
+        function updateSessionStatus(session, status, info = {}) {
+            const statusElement = document.getElementById(`status-${session}`);
+            const metricsElement = document.getElementById(`${session}-metrics`);
+            
+            statusElement.className = `status ${status}`;
+            
+            const statusTexts = {
+                connected: 'Conectado',
+                disconnected: 'Desconectado',
+                qr_ready: 'Aguardando QR',
+                error: 'Erro'
+            };
+            
+            statusElement.textContent = statusTexts[status] || status;
+            
+            if (info) {
+                sessionStates[session] = { ...sessionStates[session], ...info };
+                const metrics = sessionStates[session];
+                
+                if (session === 'sales') {
+                    metricsElement.innerHTML = `
+                        <strong>Métricas:</strong> 
+                        ${metrics.messages || 0} mensagens, 
+                        R$ ${metrics.sales || 0} em vendas
+                    `;
+                } else {
+                    metricsElement.innerHTML = `
+                        <strong>Métricas:</strong> 
+                        ${metrics.messages || 0} mensagens, 
+                        ${metrics.tickets || 0} tickets ativos
+                    `;
+                }
+            }
+            
+            updateStats();
+        }
+        
+        // Mostrar QR Code
+        function showQRCode(session, qrData) {
+            const qrContainer = document.getElementById(`qr-${session}`);
+            qrContainer.innerHTML = `
+                <p><strong>📱 Escaneie o QR Code:</strong></p>
+                <img class="qr-code" src="data:image/png;base64,${qrData}" alt="QR Code ${session}">
+                <p><small>Use o WhatsApp para ${session === 'sales' ? 'vendas' : 'suporte'}</small></p>
+            `;
+        }
+        
+        // Templates de mensagem
+        function setTemplate(type) {
+            const textarea = document.getElementById('messageTemplate');
+            const templates = {
+                promocao: `🎫 Olá {nome}! Temos uma promoção especial para você!
+
+🎪 Show imperdível chegando!
+💰 Desconto especial: 20% OFF
+📅 Garante já o seu ingresso!
+
+Responda QUERO para mais detalhes! 🚀`,
+                
+                evento: `🎪 {nome}, novo evento confirmado!
+
+🎵 Show incrível se aproxima!
+📅 Data: Em breve
+🎟️ Ingressos já disponíveis
+💎 Primeiros lotes com desconto
+
+Digite INTERESSADO para garantir! ⭐`,
+                
+                lembrete: `⏰ {nome}, não esqueça!
+
+🎫 Seu evento está chegando
+📍 Local: Casa de Shows
+⏱️ Prepare-se para a diversão
+🎉 Será inesquecível!
+
+Qualquer dúvida, é só chamar! 💬`,
+                
+                custom: ''
+            };
+            
+            if (templates[type] !== undefined) {
+                textarea.value = templates[type];
+            }
+        }
+        
+        // Campanhas
+        function startCampaign() {
+            const session = document.getElementById('campaignSession').value;
+            const file = document.getElementById('contactsFile').files[0];
+            const message = document.getElementById('messageTemplate').value;
+            
+            if (!file) {
+                showNotification('Selecione um arquivo de contatos', 'error');
+                return;
+            }
+            
+            if (!message.trim()) {
+                showNotification('Digite uma mensagem', 'error');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('session', session);
+            formData.append('message', message);
+            
+            campaignActive = true;
+            document.getElementById('stopCampaignBtn').style.display = 'inline-block';
+            document.getElementById('campaignProgress').style.display = 'block';
+            
+            fetch('/api/campaign/start', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Campanha iniciada!', 'success');
+                    showCampaignResult(data.message, 'success');
+                } else {
+                    showNotification(data.message, 'error');
+                    showCampaignResult(data.message, 'error');
+                    campaignActive = false;
+                }
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                showNotification('Erro ao iniciar campanha', 'error');
+                campaignActive = false;
+            });
+        }
+        
+        function stopCampaign() {
+            fetch('/api/campaign/stop', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    showNotification('Campanha interrompida', 'success');
+                    campaignActive = false;
+                    document.getElementById('stopCampaignBtn').style.display = 'none';
+                })
+                .catch(error => {
+                    console.error('Erro:', error);
+                });
+        }
+        
+        function updateCampaignProgress(sent, total, success) {
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            
+            const percentage = total > 0 ? (sent / total) * 100 : 0;
+            progressFill.style.width = `${percentage}%`;
+            progressText.textContent = `${sent} / ${total} enviados (${success} sucessos)`;
+            
+            if (sent >= total) {
+                campaignActive = false;
+                document.getElementById('stopCampaignBtn').style.display = 'none';
+                showNotification('Campanha finalizada!', 'success');
+            }
+        }
+        
+        function showCampaignResult(message, type) {
+            const result = document.getElementById('campaignResult');
+            result.className = `campaign-result ${type}`;
+            result.textContent = message;
+            result.style.display = 'block';
+        }
+        
+        // Logs
+        function addLog(message, type = 'info') {
+            const logs = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            const logColors = {
+                info: '#4299e1',
+                success: '#48bb78',
+                error: '#f56565',
+                warning: '#ed8936'
+            };
+            
+            const logIcons = {
+                info: 'ℹ️',
+                success: '✅',
+                error: '❌',
+                warning: '⚠️'
+            };
+            
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `
+                <span style="color: ${logColors[type] || '#e2e8f0'}">
+                    ${logIcons[type] || 'ℹ️'} [${timestamp}] ${message}
+                </span>
+            `;
+            
+            logs.appendChild(logEntry);
+            
+            if (autoScroll) {
+                logs.scrollTop = logs.scrollHeight;
+            }
+        }
+        
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+            addLog('Logs limpos pelo usuário');
+        }
+        
+        function downloadLogs() {
+            const logs = document.getElementById('logs').innerText;
+            const blob = new Blob([logs], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `whatsapp-logs-${new Date().toISOString().split('T')[0]}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        function toggleAutoScroll() {
+            autoScroll = !autoScroll;
+            document.getElementById('autoScrollText').textContent = 
+                autoScroll ? '📜 Auto-scroll ON' : '📜 Auto-scroll OFF';
+        }
+        
+        // Notificações
+        function showNotification(message, type = 'info') {
+            const notification = document.getElementById('notification');
+            const content = document.getElementById('notificationContent');
+            
+            content.textContent = message;
+            notification.className = `notification ${type} show`;
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 4000);
+        }
+        
+        // Utilitários
+        function initializeTimestamp() {
+            document.getElementById('startTime').textContent = new Date().toLocaleTimeString();
+        }
+        
+        function checkAIStatus() {
+            const aiStatus = document.getElementById('aiStatus');
+            // Simular verificação da IA
+            setTimeout(() => {
+                aiStatus.innerHTML = '🤖 OpenAI GPT-4 Conectado';
+                aiStatus.style.background = 'rgba(72, 187, 120, 0.2)';
+            }, 2000);
+        }
+        
+        function updateStats() {
+            const totalMessages = sessionStates.sales.messages + sessionStates.support.messages;
+            const totalSales = sessionStates.sales.sales || 0;
+            const totalTickets = Math.floor(totalSales / 50); // Assume R$ 50 por ingresso
+            const totalSupport = sessionStates.support.tickets || 0;
+            
+            document.getElementById('totalMessages').textContent = totalMessages;
+            document.getElementById('totalSales').textContent = `R$ ${totalSales}`;
+            document.getElementById('totalTickets').textContent = totalTickets;
+            document.getElementById('totalSupport').textContent = totalSupport;
+        }
+        
+        function updateMetrics(data) {
+            if (data.session) {
+                sessionStates[data.session] = { ...sessionStates[data.session], ...data };
+                updateStats();
+            }
+        }
+    </script>
+</body>
+</html>
