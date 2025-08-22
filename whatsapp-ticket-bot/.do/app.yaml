@@ -1,0 +1,111 @@
+# ================================================
+# DIGITALOCEAN APP PLATFORM CONFIGURATION
+# Arquivo: .do/app.yaml
+# ================================================
+name: whatsapp-ticket-bot
+services:
+- name: web
+  source_dir: /
+  github:
+    repo: YOUR_USERNAME/whatsapp-ticket-bot
+    branch: main
+    deploy_on_push: true
+  
+  build_command: npm ci && npm run build
+  run_command: npm start
+  
+  environment_slug: node-js
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  
+  http_port: 3006
+  
+  health_check:
+    http_path: /health
+    initial_delay_seconds: 30
+    period_seconds: 10
+    timeout_seconds: 5
+    success_threshold: 1
+    failure_threshold: 3
+  
+  envs:
+  - key: NODE_ENV
+    value: production
+  - key: PORT
+    value: "3006"
+  - key: DB_HOST
+    value: ${whatsapp-postgres.HOSTNAME}
+  - key: DB_USER
+    value: ${whatsapp-postgres.USERNAME}
+  - key: DB_PASSWORD
+    value: ${whatsapp-postgres.PASSWORD}
+  - key: DB_NAME
+    value: ${whatsapp-postgres.DATABASE}
+  - key: DB_PORT
+    value: ${whatsapp-postgres.PORT}
+  - key: REDIS_HOST
+    value: ${whatsapp-redis.HOSTNAME}
+  - key: REDIS_PORT
+    value: ${whatsapp-redis.PORT}
+  - key: REDIS_PASSWORD
+    value: ${whatsapp-redis.PASSWORD}
+  - key: OPENAI_API_KEY
+    value: YOUR_OPENAI_API_KEY
+    type: SECRET
+
+databases:
+- name: whatsapp-postgres
+  engine: PG
+  version: "15"
+  size: db-s-1vcpu-1gb
+  num_nodes: 1
+  production: true
+
+- name: whatsapp-redis
+  engine: REDIS
+  version: "7"
+  size: db-s-1vcpu-1gb
+  num_nodes: 1
+  production: true
+
+domains:
+- domain: your-domain.com
+  type: PRIMARY
+  zone: your-domain.com
+  
+static_sites:
+- name: dashboard
+  source_dir: /public
+  github:
+    repo: YOUR_USERNAME/whatsapp-ticket-bot
+    branch: main
+    deploy_on_push: true
+  index_document: index.html
+  error_document: 404.html
+  
+alerts:
+- rule: CPU_UTILIZATION
+  value: 80
+- rule: MEM_UTILIZATION  
+  value: 80
+- rule: RESTART_COUNT
+  value: 5
+
+# ================================================
+# ESTIMATIVA DE CUSTOS DIGITALOCEAN:
+# ================================================
+# App (basic-xxs): $5/mês
+# Database PostgreSQL: $15/mês
+# Database Redis: $15/mês
+# Domínio: Grátis
+# TOTAL: $35/mês
+
+# ================================================
+# VANTAGENS DIGITALOCEAN:
+# ================================================
+# ✅ Preço fixo e previsível
+# ✅ Interface super simples
+# ✅ Deploy automático via GitHub
+# ✅ SSL gratuito
+# ✅ Backup automático dos bancos
+# ✅ Monitoramento incluído

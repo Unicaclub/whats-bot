@@ -1,0 +1,134 @@
+# ================================================
+# WHATSAPP BOT ALERTING RULES
+# ================================================
+groups:
+- name: whatsapp-bot-alerts
+  rules:
+  
+  # ================================================
+  # APPLICATION HEALTH ALERTS
+  # ================================================
+  - alert: WhatsAppBotDown
+    expr: up{job="whatsapp-bot"} == 0
+    for: 1m
+    labels:
+      severity: critical
+      service: whatsapp-bot
+    annotations:
+      summary: "WhatsApp Bot is down"
+      description: "WhatsApp Bot has been down for more than 1 minute"
+
+  # ================================================
+  # PERFORMANCE ALERTS
+  # ================================================
+  - alert: HighCPUUsage
+    expr: rate(process_cpu_seconds_total{job="whatsapp-bot"}[5m]) * 100 > 80
+    for: 5m
+    labels:
+      severity: warning
+      service: whatsapp-bot
+    annotations:
+      summary: "High CPU usage detected"
+      description: "CPU usage is above 80% for more than 5 minutes"
+
+  - alert: HighMemoryUsage
+    expr: process_resident_memory_bytes{job="whatsapp-bot"} / 1024 / 1024 > 500
+    for: 5m
+    labels:
+      severity: warning
+      service: whatsapp-bot
+    annotations:
+      summary: "High memory usage detected"
+      description: "Memory usage is above 500MB for more than 5 minutes"
+
+  # ================================================
+  # DATABASE ALERTS
+  # ================================================
+  - alert: DatabaseConnectionError
+    expr: increase(whatsapp_bot_db_errors_total[5m]) > 5
+    for: 1m
+    labels:
+      severity: critical
+      service: database
+    annotations:
+      summary: "Database connection errors"
+      description: "More than 5 database errors in the last 5 minutes"
+
+  - alert: HighDatabaseConnections
+    expr: whatsapp_bot_db_connections_active > 80
+    for: 5m
+    labels:
+      severity: warning
+      service: database
+    annotations:
+      summary: "High number of database connections"
+      description: "Active database connections above 80 for more than 5 minutes"
+
+  # ================================================
+  # WHATSAPP SESSION ALERTS
+  # ================================================
+  - alert: WhatsAppSessionDisconnected
+    expr: whatsapp_bot_sessions_connected < 1
+    for: 2m
+    labels:
+      severity: critical
+      service: whatsapp
+    annotations:
+      summary: "WhatsApp session disconnected"
+      description: "No active WhatsApp sessions for more than 2 minutes"
+
+  - alert: HighMessageQueueSize
+    expr: whatsapp_bot_message_queue_size > 100
+    for: 5m
+    labels:
+      severity: warning
+      service: whatsapp
+    annotations:
+      summary: "Message queue is growing"
+      description: "Message queue size above 100 for more than 5 minutes"
+
+  # ================================================
+  # CAMPAIGN ALERTS
+  # ================================================
+  - alert: CampaignProcessingStuck
+    expr: increase(whatsapp_bot_campaigns_processed_total[10m]) == 0 and whatsapp_bot_campaigns_active > 0
+    for: 10m
+    labels:
+      severity: warning
+      service: campaigns
+    annotations:
+      summary: "Campaign processing appears stuck"
+      description: "No campaigns processed in last 10 minutes but active campaigns exist"
+
+  - alert: HighCampaignErrorRate
+    expr: (rate(whatsapp_bot_campaigns_errors_total[5m]) / rate(whatsapp_bot_campaigns_total[5m])) * 100 > 10
+    for: 5m
+    labels:
+      severity: warning
+      service: campaigns
+    annotations:
+      summary: "High campaign error rate"
+      description: "Campaign error rate above 10% for more than 5 minutes"
+
+  # ================================================
+  # SYSTEM ALERTS
+  # ================================================
+  - alert: DiskSpaceLow
+    expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 20
+    for: 5m
+    labels:
+      severity: warning
+      service: system
+    annotations:
+      summary: "Low disk space"
+      description: "Disk space below 20% for more than 5 minutes"
+
+  - alert: HighDiskIO
+    expr: rate(node_disk_io_time_seconds_total[5m]) > 0.8
+    for: 5m
+    labels:
+      severity: warning
+      service: system
+    annotations:
+      summary: "High disk I/O"
+      description: "Disk I/O utilization above 80% for more than 5 minutes"

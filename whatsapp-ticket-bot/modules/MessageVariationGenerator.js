@@ -184,6 +184,17 @@ class MessageVariationGenerator {
   applySynonymVariation(text, intensity = 0.7) {
     let result = text;
 
+    // Extrair e proteger links antes das variações
+    const links = this.extractLinks(text);
+    const linkPlaceholders = {};
+    
+    // Substituir links por placeholders temporários
+    links.forEach((link, index) => {
+      const placeholder = `__LINK_${index}__`;
+      linkPlaceholders[placeholder] = link;
+      result = result.replace(link, placeholder);
+    });
+
     // Aplicar sinônimos de todas as categorias
     Object.keys(this.synonyms).forEach(category => {
       Object.keys(this.synonyms[category]).forEach(word => {
@@ -201,6 +212,11 @@ class MessageVariationGenerator {
           });
         }
       });
+    });
+
+    // Restaurar links originais
+    Object.keys(linkPlaceholders).forEach(placeholder => {
+      result = result.replace(placeholder, linkPlaceholders[placeholder]);
     });
 
     return result;
@@ -236,8 +252,20 @@ class MessageVariationGenerator {
    * @returns {string} Texto com estrutura variada
    */
   applyStructuralVariation(text) {
+    // Extrair e proteger links antes das variações
+    const links = this.extractLinks(text);
+    const linkPlaceholders = {};
+    let result = text;
+    
+    // Substituir links por placeholders temporários
+    links.forEach((link, index) => {
+      const placeholder = `__LINK_${index}__`;
+      linkPlaceholders[placeholder] = link;
+      result = result.replace(link, placeholder);
+    });
+
     // Dividir em frases
-    const sentences = text.split(/[.!?]+/).filter(s => s.trim());
+    const sentences = result.split(/[.!?]+/).filter(s => s.trim());
     
     if (sentences.length > 1 && Math.random() < 0.5) {
       // Embaralhar ordem das frases ocasionalmente
@@ -248,10 +276,15 @@ class MessageVariationGenerator {
           [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
         }
       }
-      return shuffled.join('. ') + '.';
+      result = shuffled.join('. ') + '.';
     }
 
-    return text;
+    // Restaurar links originais
+    Object.keys(linkPlaceholders).forEach(placeholder => {
+      result = result.replace(placeholder, linkPlaceholders[placeholder]);
+    });
+
+    return result;
   }
 
   /**
@@ -288,6 +321,18 @@ class MessageVariationGenerator {
    * @returns {string} Texto com saudação variada
    */
   applyGreetingVariation(text) {
+    // Extrair e proteger links antes das variações
+    const links = this.extractLinks(text);
+    const linkPlaceholders = {};
+    let result = text;
+    
+    // Substituir links por placeholders temporários
+    links.forEach((link, index) => {
+      const placeholder = `__LINK_${index}__`;
+      linkPlaceholders[placeholder] = link;
+      result = result.replace(link, placeholder);
+    });
+
     // Detectar e substituir saudações no início
     const greetingPatterns = [
       /^(olá|oi|opa|e aí|eaí|salve)/i,
@@ -295,17 +340,22 @@ class MessageVariationGenerator {
     ];
 
     for (const pattern of greetingPatterns) {
-      if (pattern.test(text)) {
-        const match = text.match(pattern)[0].toLowerCase();
+      if (pattern.test(result)) {
+        const match = result.match(pattern)[0].toLowerCase();
         if (this.synonyms.saudacoes[match]) {
           const alternatives = this.synonyms.saudacoes[match];
           const newGreeting = alternatives[Math.floor(Math.random() * alternatives.length)];
-          return text.replace(pattern, newGreeting);
+          result = result.replace(pattern, newGreeting);
         }
       }
     }
 
-    return text;
+    // Restaurar links originais
+    Object.keys(linkPlaceholders).forEach(placeholder => {
+      result = result.replace(placeholder, linkPlaceholders[placeholder]);
+    });
+
+    return result;
   }
 
   /**
@@ -314,6 +364,18 @@ class MessageVariationGenerator {
    * @returns {string} Texto com CTA variado
    */
   applyCtaVariation(text) {
+    // Extrair e proteger links antes das variações
+    const links = this.extractLinks(text);
+    const linkPlaceholders = {};
+    let result = text;
+    
+    // Substituir links por placeholders temporários
+    links.forEach((link, index) => {
+      const placeholder = `__LINK_${index}__`;
+      linkPlaceholders[placeholder] = link;
+      result = result.replace(link, placeholder);
+    });
+
     // Detectar padrões de CTA e variar
     const ctaPatterns = [
       /digite\s+(\w+)/i,
@@ -322,7 +384,7 @@ class MessageVariationGenerator {
     ];
 
     for (const pattern of ctaPatterns) {
-      const match = text.match(pattern);
+      const match = result.match(pattern);
       if (match) {
         const palavra = match[1];
         const variations = [
@@ -333,11 +395,16 @@ class MessageVariationGenerator {
           `Chama *${palavra}* aqui`
         ];
         const newCta = variations[Math.floor(Math.random() * variations.length)];
-        return text.replace(match[0], newCta);
+        result = result.replace(match[0], newCta);
       }
     }
 
-    return text;
+    // Restaurar links originais
+    Object.keys(linkPlaceholders).forEach(placeholder => {
+      result = result.replace(placeholder, linkPlaceholders[placeholder]);
+    });
+
+    return result;
   }
 
   /**
@@ -367,7 +434,7 @@ class MessageVariationGenerator {
    * @returns {Array} Links encontrados
    */
   extractLinks(text) {
-    const linkRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+    const linkRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)/gi;
     return text.match(linkRegex) || [];
   }
 
@@ -448,9 +515,40 @@ class MessageVariationGenerator {
    * @returns {string} Texto com elementos preservados
    */
   preserveElements(text, elements) {
-    // Esta função garante que links, números importantes, etc. não foram alterados
-    // Por simplicidade, retornamos o texto como está, mas poderia ter validação mais rigorosa
-    return text;
+    let result = text;
+    
+    // Verificar se todos os links estão presentes
+    if (elements.links && elements.links.length > 0) {
+      elements.links.forEach(link => {
+        if (!result.includes(link)) {
+          console.log(`⚠️ Link perdido durante variação: ${link}`);
+          // Tentar restaurar o link no final da mensagem se perdido
+          result += ` ${link}`;
+        }
+      });
+    }
+    
+    // Verificar números de telefone
+    if (elements.phoneNumbers && elements.phoneNumbers.length > 0) {
+      elements.phoneNumbers.forEach(phone => {
+        if (!result.includes(phone)) {
+          console.log(`⚠️ Telefone perdido durante variação: ${phone}`);
+          result += ` ${phone}`;
+        }
+      });
+    }
+    
+    // Verificar códigos importantes
+    if (elements.codes && elements.codes.length > 0) {
+      elements.codes.forEach(code => {
+        if (!result.includes(code)) {
+          console.log(`⚠️ Código perdido durante variação: ${code}`);
+          result += ` ${code}`;
+        }
+      });
+    }
+    
+    return result;
   }
 
   /**

@@ -4,6 +4,9 @@ const path = require('path');
 // Carregar configurações do .env
 require('dotenv').config();
 
+// 🎭 IMPORTAR GERADOR DE VARIAÇÕES DE MENSAGENS
+const MessageVariationGenerator = require('./MessageVariationGenerator');
+
 class CampaignBatchProcessor {
     constructor(config = {}) {
         // Suporte ao formato antigo e novo
@@ -33,6 +36,11 @@ class CampaignBatchProcessor {
         this.failedCount = 0;
         this.duplicateCount = 0;
         
+        // 🎭 SISTEMA DE VARIAÇÕES DE MENSAGENS
+        this.variationGenerator = new MessageVariationGenerator();
+        this.messageVariations = [];
+        this.variationIndex = 0;
+        
         // Sistema de persistência de estado
         this.stateManager = null;
         this.stateId = null;
@@ -49,6 +57,42 @@ class CampaignBatchProcessor {
         this.stateManager = stateManager;
         this.stateId = stateId;
         console.log(`💾 State manager configurado: campanha ${stateId}`);
+    }
+
+    // 🎭 NOVO: Configurar variações de mensagem
+    setupMessageVariations(originalMessage) {
+        try {
+            console.log('🎭 Gerando variações da mensagem para evitar detecção de spam...');
+            this.messageVariations = this.variationGenerator.generateVariations(originalMessage);
+            console.log(`✅ ${this.messageVariations.length} variações criadas com sucesso`);
+            
+            // Log das variações para monitoramento (primeiros 50 caracteres)
+            this.messageVariations.forEach((variation, index) => {
+                console.log(`📝 Variação ${index + 1}: ${variation.substring(0, 50)}...`);
+            });
+            
+            this.variationIndex = 0; // Reset do índice
+            return true;
+        } catch (error) {
+            console.error('❌ Erro ao gerar variações:', error);
+            this.messageVariations = [originalMessage]; // Fallback para mensagem original
+            return false;
+        }
+    }
+
+    // 🎭 NOVO: Obter próxima variação da mensagem
+    getNextMessageVariation() {
+        if (this.messageVariations.length === 0) {
+            return null;
+        }
+        
+        const variation = this.messageVariations[this.variationIndex];
+        this.variationIndex = (this.variationIndex + 1) % this.messageVariations.length;
+        
+        return {
+            message: variation,
+            variationNumber: (this.variationIndex === 0 ? this.messageVariations.length : this.variationIndex)
+        };
     }
     
     // Método para resumir campanha do ponto onde parou
@@ -403,6 +447,11 @@ class CampaignBatchProcessor {
         try {
             console.log(`📱 Enviando lote ${batchNumber} com ${numbers.length} números...`);
             
+            // 🎭 CONFIGURAR VARIAÇÕES DE MENSAGEM se ainda não foi feito
+            if (this.messageVariations.length === 0) {
+                this.setupMessageVariations(message);
+            }
+            
             let sent = 0;
             let failed = 0;
             let duplicates = 0;
@@ -420,14 +469,25 @@ class CampaignBatchProcessor {
                         continue;
                     }
                     
-                    // Enviar mensagem
-                    await client.sendText(formattedNumber, message);
+                    // 🎭 USAR VARIAÇÃO DA MENSAGEM
+                    const messageVariation = this.getNextMessageVariation();
+                    const messageToSend = messageVariation ? messageVariation.message : message;
+                    const variationUsed = messageVariation ? messageVariation.variationNumber : 1;
+                    
+                    console.log(`🎭 ${sessionName} - Usando variação ${variationUsed} para ${number}`);
+                    
+                    // Enviar mensagem com variação
+                    await client.sendText(formattedNumber, messageToSend);
                     sent++;
                     
-                    // Registrar no banco de dados
-                    await this.recordSentNumber(number, batchNumber);
+                    // Registrar no banco de dados com informação da variação
+                    await this.recordSentNumber(number, batchNumber, {
+                        message_template: message,
+                        message_sent: messageToSend,
+                        variation_used: variationUsed
+                    });
                     
-                    console.log(`✅ ${sessionName} - Enviado ${i + 1}/${numbers.length}: ${number}`);
+                    console.log(`✅ ${sessionName} - Enviado ${i + 1}/${numbers.length}: ${number} (Variação ${variationUsed})`);
                     
                     // Delay entre mensagens usando configurações dinâmicas - PROTEÇÃO ANTI-SPAM
                     const messageDelay = Math.random() * (this.maxInterval - this.minInterval) + this.minInterval;
@@ -480,15 +540,17 @@ class CampaignBatchProcessor {
         }
     }
     
-    async recordSentNumber(number, campaignId) {
+    async recordSentNumber(number, campaignId, extraData = {}) {
         // Registrar número enviado usando sistema existente
         try {
             // ÚNICA CHAMADA: Usar apenas campaignControl.markCampaignSent 
             if (this.campaignControl && this.campaignControl.markCampaignSent) {
                 await this.campaignControl.markCampaignSent(number, { 
                     campaignId: campaignId,
-                    session: 'batch',
-                    timestamp: new Date().toISOString()
+                    session: 'batch_with_variations',
+                    timestamp: new Date().toISOString(),
+                    sent_via: 'CampaignBatchProcessor',
+                    ...extraData // Incluir dados extras como variação usada
                 });
                 console.log(`💾 Registrado envio: ${number} (campanha: ${campaignId})`);
             } else {

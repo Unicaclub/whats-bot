@@ -1,0 +1,81 @@
+# ================================================
+# CLOUD RUN SERVICE CONFIGURATION
+# ================================================
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: whatsapp-bot
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/execution-environment: gen2
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: "100"
+        autoscaling.knative.dev/minScale: "0"
+        run.googleapis.com/cloudsql-instances: "YOUR_PROJECT_ID:us-central1:whatsapp-postgres"
+        run.googleapis.com/vpc-access-connector: "projects/YOUR_PROJECT_ID/locations/us-central1/connectors/default-connector"
+        run.googleapis.com/cpu-throttling: "false"
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 900
+      serviceAccountName: whatsapp-bot-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com
+      containers:
+      - name: whatsapp-bot
+        image: gcr.io/YOUR_PROJECT_ID/whatsapp-bot:latest
+        ports:
+        - containerPort: 3006
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3006"
+        - name: DB_HOST
+          value: "/cloudsql/YOUR_PROJECT_ID:us-central1:whatsapp-postgres"
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: database-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: database-credentials
+              key: password
+        - name: DB_NAME
+          value: "whatsapp_campaigns"
+        - name: REDIS_HOST
+          valueFrom:
+            secretKeyRef:
+              name: redis-credentials
+              key: host
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openai-credentials
+              key: api-key
+        resources:
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3006
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3006
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3

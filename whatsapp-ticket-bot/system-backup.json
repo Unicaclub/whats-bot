@@ -1,9 +1,9 @@
 {
-  "timestamp": "2025-08-15T06:30:54.570Z",
+  "timestamp": "2025-08-20T01:28:55.262Z",
   "sessions": {
     "sales": {
       "status": "connected",
-      "lastActivity": "2025-08-15T06:10:54.581Z",
+      "lastActivity": "2025-08-20T01:24:13.909Z",
       "hasClient": true
     },
     "support": {
@@ -12,13 +12,13 @@
       "hasClient": false
     }
   },
-  "uptime": 1802.7476858,
+  "uptime": 1804.6208986,
   "memory": {
-    "rss": 121597952,
-    "heapTotal": 58114048,
-    "heapUsed": 53991328,
-    "external": 8138307,
-    "arrayBuffers": 4392568
+    "rss": 90353664,
+    "heapTotal": 55316480,
+    "heapUsed": 44182264,
+    "external": 7050657,
+    "arrayBuffers": 3311738
   },
   "campaigns": {},
   "lastProcessedNumbers": []

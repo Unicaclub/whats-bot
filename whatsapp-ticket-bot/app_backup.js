@@ -8,30 +8,6 @@ const path = require('path');
 const multer = require('multer');
 const csv = require('csv-parser');
 const xlsx = require('xlsx');
-const qrTerminal = require('qrcode-terminal'); // Para melhor exibição do QR code
-
-// 🚨 PROTEÇÃO CRÍTICA: Controle de mensagens de campanha
-const campaignMessages = new Set(); // Armazenar mensagens de campanha enviadas
-const recentCampaignNumbers = new Set(); // Números que receberam campanha recentemente
-
-// Função para registrar envio de campanha
-function registerCampaignMessage(number, message) {
-  const key = `${number}_${message.substring(0, 50)}`;
-  campaignMessages.add(key);
-  recentCampaignNumbers.add(number);
-  
-  // Limpar após 5 minutos para não acumular na memória
-  setTimeout(() => {
-    campaignMessages.delete(key);
-    recentCampaignNumbers.delete(number);
-  }, 300000); // 5 minutos
-}
-
-// Função para verificar se é resposta a campanha
-function isResponseToCampaign(number, message) {
-  const key = `${number}_${message.substring(0, 50)}`;
-  return campaignMessages.has(key) || recentCampaignNumbers.has(number);
-}
 
 // Configurar OpenAI
 let openai = null;
@@ -64,36 +40,6 @@ const sessions = {
     lastActivity: null
   }
 };
-
-// Função auxiliar para garantir que o chat existe
-async function ensureChatExists(client, formattedNumber, sessionName) {
-  try {
-    // Tentar obter o chat existente
-    const chat = await client.getChatById(formattedNumber);
-    if (chat) {
-      return true; // Chat já existe
-    }
-  } catch (error) {
-    // Chat não existe, vamos tentar criar
-  }
-  
-  try {
-    // Método 1: getOrCreateChat (método preferido)
-    await client.getOrCreateChat(formattedNumber);
-    console.log(`✅ ${sessionName} - Chat criado com getOrCreateChat para ${formattedNumber}`);
-    return true;
-  } catch (error1) {
-    try {
-      // Método 2: Tentar via sendMessage com createChat
-      await client.sendMessage(formattedNumber, '', { createChat: true });
-      console.log(`✅ ${sessionName} - Chat criado com sendMessage para ${formattedNumber}`);
-      return true;
-    } catch (error2) {
-      console.log(`⚠️ ${sessionName} - Não foi possível garantir que o chat existe para ${formattedNumber}`);
-      return false;
-    }
-  }
-}
 
 // Função auxiliar para delay
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -442,42 +388,13 @@ async function createSalesSession() {
     const client = await create({
       session: 'sales',
       catchQR: (base64Qr, asciiQR) => {
-        console.log('\n� NOVO QR CODE VENDAS GERADO! 🔴');
-        console.log('═══════════════════════════════════════════════');
-        console.log('🔍 ESCANEIE O QR CODE ABAIXO COM SEU WHATSAPP:');
-        console.log('═══════════════════════════════════════════════');
-        
-        // Verificar se asciiQR existe e exibir
-        if (asciiQR && asciiQR.trim()) {
-          console.log(asciiQR);
-        } else {
-          console.log('⚠️  ASCII QR não disponível, verifique o arquivo PNG salvo');
-        }
-        
-        console.log('═══════════════════════════════════════════════');
-        console.log('⏰ ATENÇÃO: QR Code expira em 3 MINUTOS!');
-        console.log('📱 Acesse também: http://localhost:3006');
-        console.log('═══════════════════════════════════════════════\n');
-        
+        console.log('📱 QR Code VENDAS gerado');
         sessions.sales.status = 'qr_ready';
-        sessions.sales.qrCode = base64Qr;
         
-        // Salvar na pasta public para o dashboard
-        const publicDir = path.join(__dirname, 'public');
-        if (!fs.existsSync(publicDir)) {
-          fs.mkdirSync(publicDir, { recursive: true });
-        }
-        
-        const qrPath = path.join(publicDir, 'qr-sales.png');
+        const qrPath = path.join(__dirname, 'public', 'qr-sales.png');
         const base64Data = base64Qr.replace(/^data:image\/png;base64,/, '');
         fs.writeFileSync(qrPath, base64Data, 'base64');
-        
-        // Também salvar na raiz para fácil acesso
-        const qrRootPath = path.join(__dirname, 'qr-sales.png');
-        fs.writeFileSync(qrRootPath, base64Data, 'base64');
-        
         console.log('✅ QR Code VENDAS salvo: qr-sales.png');
-        console.log('📂 Arquivo salvo em: public/qr-sales.png');
       },
       statusFind: (statusSession, session) => {
         console.log(`🛒 VENDAS - Estado: ${statusSession}`);
@@ -492,7 +409,7 @@ async function createSalesSession() {
       devtools: false,
       debug: false,
       logQR: false,
-      autoClose: 180000, // 3 minutos para escanear
+      autoClose: 60000,
       disableSpins: true,
       puppeteerOptions: {
         headless: true,
@@ -515,16 +432,17 @@ async function createSalesSession() {
     client.onMessage(async (message) => {
       try {
         if (message.isGroupMsg || message.from === 'status@broadcast') return;
-        
-        // 🚨 PROTEÇÃO CRÍTICA: Só responder a mensagens iniciadas pelo usuário
-        // Verificar se a mensagem veio de uma campanha (bot) ou do usuário real
-        if (message.fromMe) return; // Ignorar mensagens enviadas pelo próprio bot
-        
         sessions.sales.lastActivity = new Date();
         console.log(`💰 VENDAS - ${message.from}: ${message.body}`);
         
-        // Só processar se for mensagem real do usuário (não de campanha)
-        await handleSalesMessage(client, message);
+        if (message.body === 'Hello') {
+          await client.sendText(message.from, '🏆 Olá! Bem-vindo à ROYAL – A NOITE É SUA, O REINADO É NOSSO!');
+          setTimeout(async () => {
+            await client.sendText(message.from, '🔥 MC DANIEL – O FALCÃO vai comandar o palco! \n\nSe é luxo e exclusividade que você procura… Aqui é o seu lugar!\n\nDigite *EVENTOS* para ver todas as opções de ingressos e camarotes! 🎫✨');
+          }, 1000);
+        } else {
+          await handleSalesMessage(client, message);
+        }
       } catch (error) {
         console.error('❌ VENDAS - Erro no handler:', error);
       }
@@ -550,42 +468,13 @@ async function createSupportSession() {
     const client = await create({
       session: 'support',
       catchQR: (base64Qr, asciiQR) => {
-        console.log('\n� NOVO QR CODE SUPORTE GERADO! 💙');
-        console.log('═══════════════════════════════════════════════');
-        console.log('🔍 ESCANEIE O QR CODE ABAIXO COM SEU WHATSAPP:');
-        console.log('═══════════════════════════════════════════════');
-        
-        // Verificar se asciiQR existe e exibir
-        if (asciiQR && asciiQR.trim()) {
-          console.log(asciiQR);
-        } else {
-          console.log('⚠️  ASCII QR não disponível, verifique o arquivo PNG salvo');
-        }
-        
-        console.log('═══════════════════════════════════════════════');
-        console.log('⏰ ATENÇÃO: QR Code expira em 3 MINUTOS!');
-        console.log('📱 Acesse também: http://localhost:3006');
-        console.log('═══════════════════════════════════════════════\n');
-        
+        console.log('📱 QR Code SUPORTE gerado');
         sessions.support.status = 'qr_ready';
-        sessions.support.qrCode = base64Qr;
         
-        // Salvar na pasta public para o dashboard
-        const publicDir = path.join(__dirname, 'public');
-        if (!fs.existsSync(publicDir)) {
-          fs.mkdirSync(publicDir, { recursive: true });
-        }
-        
-        const qrPath = path.join(publicDir, 'qr-support.png');
+        const qrPath = path.join(__dirname, 'public', 'qr-support.png');
         const base64Data = base64Qr.replace(/^data:image\/png;base64,/, '');
         fs.writeFileSync(qrPath, base64Data, 'base64');
-        
-        // Também salvar na raiz para fácil acesso
-        const qrRootPath = path.join(__dirname, 'qr-support.png');
-        fs.writeFileSync(qrRootPath, base64Data, 'base64');
-        
         console.log('✅ QR Code SUPORTE salvo: qr-support.png');
-        console.log('📂 Arquivo salvo em: public/qr-support.png');
       },
       statusFind: (statusSession, session) => {
         console.log(`🛟 SUPORTE - Estado: ${statusSession}`);
@@ -600,7 +489,7 @@ async function createSupportSession() {
       devtools: false,
       debug: false,
       logQR: false,
-      autoClose: 180000, // 3 minutos para escanear
+      autoClose: 60000,
       disableSpins: true,
       puppeteerOptions: {
         headless: true,
@@ -623,16 +512,16 @@ async function createSupportSession() {
     client.onMessage(async (message) => {
       try {
         if (message.isGroupMsg || message.from === 'status@broadcast') return;
-        
-        // 🚨 PROTEÇÃO CRÍTICA: Só responder a mensagens iniciadas pelo usuário
-        // Verificar se a mensagem veio de uma campanha (bot) ou do usuário real
-        if (message.fromMe) return; // Ignorar mensagens enviadas pelo próprio bot
-        
         sessions.support.lastActivity = new Date();
         console.log(`🛟 SUPORTE - ${message.from}: ${message.body}`);
         
-        // Só processar se for mensagem real do usuário (não de campanha)
-        await handleSupportMessage(client, message);
+        if (message.body === 'Hello') {
+          client.sendText(message.from, '🛟 Olá! Este é o suporte da Casa de Show. Como posso ajudar?')
+            .then((result) => console.log('✅ SUPORTE - Resposta enviada:', result.id))
+            .catch((erro) => console.error('❌ SUPORTE - Erro ao enviar:', erro));
+        } else {
+          await handleSupportMessage(client, message);
+        }
       } catch (error) {
         console.error('❌ SUPORTE - Erro no handler:', error);
       }
@@ -652,12 +541,6 @@ async function handleSalesMessage(client, message) {
   const userId = message.from;
   const userMessage = (message.body || '').toLowerCase();
   
-  // 🚨 PROTEÇÃO CRÍTICA: Verificar se pode ser resposta a campanha
-  if (isResponseToCampaign(userId.replace('@c.us', ''), message.body)) {
-    console.log(`⚠️ SEGURANÇA: Possível resposta a campanha de ${userId}, ignorando para evitar loop`);
-    return;
-  }
-  
   if (botHumanizer.isUserBeingServed(userId)) {
     console.log(`⏳ ${userId} já está sendo atendido, ignorando mensagem`);
     return;
@@ -675,23 +558,21 @@ async function handleSalesMessage(client, message) {
       userMessage.includes('bairro') || userMessage.includes('cidade')) {
     
     console.log(`📍 LOCALIZAÇÃO DETECTADA! Enviando resposta...`);
-    const response = `📍 *LOCALIZAÇÃO DO DJ TS*
+    const response = `📍 *LOCALIZAÇÃO DA ROYAL*
 
 🏢 **Endereço:**
-Única Club
-Av. Afonso Pena, 4240
+Av. Arquiteto Rubens Gil de Camillo, 20
+Chácara Cachoeira
 Campo Grande - MS
+CEP: 79040-090
 
-🗺️ **Evento:**
-DJ TS - Show Exclusivo
-📅 Sábado, 23 de agosto
-⏰ A partir das 22h
+🗺️ **Localização no Mapa:**
+👉 https://maps.app.goo.gl/kS7oyF2kXVQZtp9C7
 
 🚗 *Fácil acesso!*
 🎯 *Localização privilegiada em Campo Grande!*
 
-Para mais informações, entre em contato:
-👉 https://wa.me/556799959601`;
+Para mais informações sobre o evento, digite *EVENTOS*!`;
     
     await botHumanizer.simulateHumanResponse(client, userId, response, userMessage);
     console.log(`✅ Resposta de localização enviada para ${userId}`);
@@ -705,13 +586,13 @@ Para mais informações, entre em contato:
     
     const response = `👤 *ATENDIMENTO PERSONALIZADO*
 
-Para um atendimento completo e personalizado sobre o show do DJ TS, fale diretamente com nossa equipe:
+Para um atendimento completo e personalizado, fale diretamente com nossa equipe:
 
 📲 *WhatsApp Atendimento:*
-👉 https://wa.me/556799959601
+👉 https://wa.me/556792941631
 
 Nossa equipe está disponível para:
-✅ Informações sobre o evento
+✅ Informações sobre eventos
 ✅ Dúvidas sobre ingressos
 ✅ Suporte especializado
 ✅ Atendimento VIP
@@ -740,54 +621,92 @@ Segunda a Domingo - 10h às 22h`;
     
     switch (userState.step) {
       case 'inicio':
-        // 🚨 PROTEÇÃO CRÍTICA: Só responder a saudações genuínas do usuário
-        if (userMessage.includes('oi') || userMessage.includes('ola') || userMessage.includes('hello') || 
-            userMessage.includes('bom dia') || userMessage.includes('boa tarde') || userMessage.includes('boa noite')) {
-          response = `🎧 *DJ TS apresenta show exclusivo!*
+        if (userMessage.includes('oi') || userMessage.includes('ola') || userMessage.includes('hello')) {
+          response = `🏆 *Bem-vindo à ROYAL – A NOITE É SUA, O REINADO É NOSSO!*
 
-🔥 Uma das principais atrações do país chega em Campo Grande para uma noite especial neste sábado, 23 de agosto.
+🔥 Prepare-se para uma noite LENDÁRIA!
+🎤 MC DANIEL – O FALCÃO vai comandar o palco com os hits que tão explodindo em todo o Brasil!
 
-📍 *Local:* Única Club
-Endereço: Av. Afonso Pena, 4240 - CG/MS
-
-📅 *Data:* Sábado, 23 de agosto  
-⏰ *Horário:* a partir das 22h
-
-📞 *MENU DE OPÇÕES:*
-1️⃣ Falar com *ATENDIMENTO*
+🛒 *MENU DE OPÇÕES:*
+1️⃣ Ver *EVENTOS* completos
+2️⃣ *RESERVAR* bistrôs e camarotes
+3️⃣ Falar com *ATENDIMENTO*
 
 💰 *Formas de pagamento:* PIX, Cartão
 🚚 *Entrega:* Digital (WhatsApp) ou Retirada
 
-Digite *1* ou *ATENDIMENTO* para falar com nossa equipe!`;
+Digite o *número* da opção desejada!`;
           userState.step = 'menu';
         } else {
-          // 🚨 SEGURANÇA: NÃO responder automaticamente a outras mensagens
-          // Isso previne respostas a mensagens de campanha
-          console.log(`⚠️ SEGURANÇA: Ignorando mensagem não-saudação de ${userId}: "${userMessage}"`);
-          return; // SAIR SEM RESPONDER
+          // Qualquer outra mensagem também mostra o menu
+          response = `🏆 *Bem-vindo à ROYAL – A NOITE É SUA, O REINADO É NOSSO!*
+
+🔥 Prepare-se para uma noite LENDÁRIA!
+🎤 MC DANIEL – O FALCÃO vai comandar o palco com os hits que tão explodindo em todo o Brasil!
+
+🛒 *MENU DE OPÇÕES:*
+1️⃣ Ver *EVENTOS* completos
+2️⃣ *RESERVAR* bistrôs e camarotes
+3️⃣ Falar com *ATENDIMENTO*
+
+💰 *Formas de pagamento:* PIX, Cartão
+🚚 *Entrega:* Digital (WhatsApp) ou Retirada
+
+Digite o *número* da opção desejada!`;
+          userState.step = 'menu';
         }
-        break;
         break;
         
       case 'menu':
-        // Qualquer mensagem leva para o atendimento
-        response = `👤 *ATENDIMENTO PERSONALIZADO*
+        if (userMessage.includes('1') || userMessage.includes('eventos') || userMessage.includes('evento') || userMessage.includes('cardapio') || userMessage.includes('cardápio')) {
+          response = await generateCatalogResponse();
+          userState.step = 'catalogo';
+        } else if (userMessage.includes('2') || userMessage.includes('reservar') || userMessage.includes('reserva') || userMessage.includes('bistro') || userMessage.includes('camarote')) {
+          response = `🍾 *RESERVAS BISTRÔS E CAMAROTES*
 
-Para um atendimento completo e personalizado sobre o show do DJ TS, fale diretamente com nossa equipe:
+Para fazer sua reserva e garantir o melhor lugar na casa, entre em contato diretamente com nossa equipe especializada:
+
+📲 *WhatsApp para Reservas:*
+👉 https://wa.me/556792941631
+
+Nossa equipe está pronta para:
+✅ Tirar todas suas dúvidas
+✅ Fazer sua reserva personalizada  
+✅ Oferecer as melhores condições
+✅ Garantir sua mesa/camarote
+
+💰 *Condições especiais disponíveis!*
+🏆 *Atendimento VIP exclusivo!*`;
+          shouldHumanize = false;
+        } else if (userMessage.includes('3') || userMessage.includes('atendimento')) {
+          response = `👤 *ATENDIMENTO PERSONALIZADO*
+
+Para um atendimento completo e personalizado, fale diretamente com nossa equipe:
 
 📲 *WhatsApp Atendimento:*
-👉 https://wa.me/556799959601
+👉 https://wa.me/556792941631
 
 Nossa equipe está disponível para:
-✅ Informações sobre o evento
+✅ Informações sobre eventos
 ✅ Dúvidas sobre ingressos
 ✅ Suporte especializado
 ✅ Atendimento VIP
 
 ⏰ *Horário de atendimento:* 
 Segunda a Domingo - 10h às 22h`;
-        shouldHumanize = false;
+          shouldHumanize = false;
+        } else {
+          // Opção inválida - mostra o menu novamente
+          response = `❌ *Opção inválida!*
+
+🛒 *MENU DE OPÇÕES:*
+1️⃣ Ver *EVENTOS* completos
+2️⃣ *RESERVAR* bistrôs e camarotes
+3️⃣ Falar com *ATENDIMENTO*
+
+Digite o *número* da opção desejada (1, 2 ou 3)!`;
+          // Mantém no step 'menu' para continuar aguardando opção válida
+        }
         break;
         
       case 'catalogo':
@@ -795,31 +714,8 @@ Segunda a Domingo - 10h às 22h`;
         break;
         
       default:
-        // 🚨 SEGURANÇA: Só responder no default se usuário pediu atendimento
-        if (userMessage.includes('atendimento') || userMessage.includes('1') || 
-            userMessage.includes('ajuda') || userMessage.includes('suporte')) {
-          response = `👤 *ATENDIMENTO PERSONALIZADO*
-
-Para um atendimento completo e personalizado sobre o show do DJ TS, fale diretamente com nossa equipe:
-
-📲 *WhatsApp Atendimento:*
-👉 https://wa.me/556799959601
-
-Nossa equipe está disponível para:
-✅ Informações sobre o evento
-✅ Dúvidas sobre ingressos
-✅ Suporte especializado
-✅ Atendimento VIP
-
-⏰ *Horário de atendimento:* 
-Segunda a Domingo - 10h às 22h`;
-          userState.step = 'menu';
-          shouldHumanize = false;
-        } else {
-          // NÃO responder a mensagens aleatórias
-          console.log(`⚠️ SEGURANÇA: Ignorando mensagem não-solicitada de ${userId}: "${userMessage}"`);
-          return;
-        }
+        response = await generateCatalogResponse();
+        userState.step = 'catalogo';
         break;
     }
     
@@ -915,7 +811,7 @@ Segunda a Domingo - 10h às 22h`;
     }
     
     if (!openai) {
-      response = '🛟 Olá! Para informações sobre o show do DJ TS, entre em contato:\n👉 https://wa.me/556799959601';
+      response = '🛟 Olá! Sou o suporte da Royal. Como posso ajudar?\n\nPara informações sobre ingressos, acesse:\n👉 https://links.totalingressos.com/mc-daniel-na-royal.html';
       await botHumanizer.simulateHumanResponse(client, userId, response, userMessage);
       return;
     }
@@ -925,7 +821,7 @@ Segunda a Domingo - 10h às 22h`;
       messages: [
         {
           role: "system",
-          content: "Você é um assistente de suporte para o show do DJ TS na Única Club. O evento é no sábado, 23 de agosto. Seja prestativo e direto. Sempre indique o WhatsApp oficial: https://wa.me/556799959601"
+          content: "Você é um assistente de suporte da casa de shows ROYAL. O evento é com MC DANIEL. Seja prestativo e direto. Sempre indique o link oficial: https://links.totalingressos.com/mc-daniel-na-royal.html"
         },
         {
           role: "user", 
@@ -941,7 +837,7 @@ Segunda a Domingo - 10h às 22h`;
     
   } catch (error) {
     console.error('❌ Erro OpenAI:', error);
-    const fallbackResponse = '🛟 Olá! Para informações sobre o show do DJ TS, acesse:\n👉 https://wa.me/556799959601';
+    const fallbackResponse = '🛟 Olá! Sou o suporte da Royal. Para informações sobre ingressos, acesse:\n👉 https://links.totalingressos.com/mc-daniel-na-royal.html';
     await botHumanizer.simulateHumanResponse(client, userId, fallbackResponse, userMessage);
   }
 }
@@ -1026,353 +922,33 @@ Ou digite *EVENTOS* para ver todas as opções novamente!`;
   }
 }
 
-// 🎭 SISTEMA DE VARIAÇÃO DE MENSAGENS ANTI-SPAM
-// Função para gerar variações da mensagem original
-function generateMessageVariation(originalMessage) {
-  // Variações de introdução/abertura
-  const openings = [
-    '',
-    '🎧 ',
-    '🔥 ',
-    '🎵 ',
-    '⭐ ',
-    '🎪 ',
-    '🌟 ',
-    '🎊 ',
-    '🎯 ',
-    '💫 ',
-    '🚀 ',
-    '✨ '
-  ];
-
-  // Variações de conectivos/transições
-  const connectors = [
-    'apresenta',
-    'traz',
-    'promove',
-    'realiza',
-    'oferece',
-    'divulga',
-    'anuncia'
-  ];
-
-  // Variações de palavras-chave
-  const keywords = [
-    'show exclusivo',
-    'evento especial',
-    'apresentação única',
-    'noite especial',
-    'show imperdível',
-    'evento único',
-    'grande show',
-    'festa exclusiva'
-  ];
-
-  // Variações de call-to-action
-  const callToActions = [
-    'Digite *ATENDIMENTO* para falar com nossa equipe!',
-    'Responda *ATENDIMENTO* para mais informações!',
-    'Entre em contato digitando *ATENDIMENTO*!',
-    'Fale conosco digitando *ATENDIMENTO*!',
-    'Digite *ATENDIMENTO* para atendimento personalizado!'
-  ];
-
-  // Aplicar variações na mensagem original
-  let variedMessage = originalMessage;
-
-  // Se a mensagem contém "DJ TS apresenta show exclusivo"
-  if (variedMessage.includes('DJ TS apresenta show exclusivo')) {
-    const randomConnector = connectors[Math.floor(Math.random() * connectors.length)];
-    const randomKeyword = keywords[Math.floor(Math.random() * keywords.length)];
-    variedMessage = variedMessage.replace('DJ TS apresenta show exclusivo', `DJ TS ${randomConnector} ${randomKeyword}`);
-  }
-
-  // Adicionar emoji aleatório no início
-  const randomOpening = openings[Math.floor(Math.random() * openings.length)];
-  if (randomOpening && !variedMessage.startsWith('🎧') && !variedMessage.startsWith('🔥')) {
-    variedMessage = randomOpening + variedMessage;
-  }
-
-  // Variar call-to-action se presente
-  if (variedMessage.includes('Digite *ATENDIMENTO* para falar com nossa equipe!')) {
-    const randomCTA = callToActions[Math.floor(Math.random() * callToActions.length)];
-    variedMessage = variedMessage.replace('Digite *ATENDIMENTO* para falar com nossa equipe!', randomCTA);
-  }
-
-  // Adicionar pequenas variações estruturais
-  const structuralVariations = [
-    (msg) => msg.replace('Uma das principais atrações', 'Uma das maiores atrações'),
-    (msg) => msg.replace('Uma das principais atrações', 'Uma das melhores atrações'),
-    (msg) => msg.replace('noite especial', 'noite única'),
-    (msg) => msg.replace('noite especial', 'noite incrível'),
-    (msg) => msg.replace('Campo Grande', 'CG'),
-    (msg) => msg.replace('23 de agosto', '23/08'),
-    (msg) => msg
-  ];
-
-  // Aplicar uma variação estrutural aleatória
-  const randomVariation = structuralVariations[Math.floor(Math.random() * structuralVariations.length)];
-  variedMessage = randomVariation(variedMessage);
-
-  return variedMessage;
-}
-
-// Função para garantir mensagens únicas por campanha
-const usedVariations = new Set();
-function getUniqueMessageVariation(originalMessage, campaignId = 'default') {
-  const maxAttempts = 50; // Evitar loop infinito
-  let attempts = 0;
-  
-  while (attempts < maxAttempts) {
-    const variation = generateMessageVariation(originalMessage);
-    const variationKey = `${campaignId}_${variation}`;
-    
-    if (!usedVariations.has(variationKey)) {
-      usedVariations.add(variationKey);
-      
-      // Limpar cache após 1000 variações para não acumular na memória
-      if (usedVariations.size > 1000) {
-        usedVariations.clear();
-      }
-      
-      return variation;
-    }
-    attempts++;
-  }
-  
-  // Se não conseguir gerar única, retornar variação simples
-  return generateMessageVariation(originalMessage);
-}
-
 // Função para envio de campanha humanizada (simplificada)
 async function sendHumanizedCampaign(client, numbers, message, sessionName) {
   const results = { sent: 0, failed: 0, errors: [] };
-  
-  // Verificar se a sessão está conectada
-  try {
-    const sessionStatus = await client.getConnectionState();
-    if (sessionStatus !== 'CONNECTED') {
-      console.error(`❌ Sessão ${sessionName} não está conectada. Status: ${sessionStatus}`);
-      return { sent: 0, failed: numbers.length, errors: [{ error: 'Sessão não conectada' }] };
-    }
-  } catch (error) {
-    console.error(`❌ Erro ao verificar status da sessão ${sessionName}:`, error.message);
-  }
   
   console.log(`📢 Iniciando campanha humanizada ${sessionName} para ${numbers.length} números...`);
   
   for (let i = 0; i < numbers.length; i++) {
     try {
       const number = numbers[i];
-      
-      // Validar e formatar número de forma mais robusta
-      let formattedNumber;
-      if (number.includes('@c.us')) {
-        formattedNumber = number;
-      } else {
-        // Remover caracteres não numéricos
-        const cleanNumber = number.replace(/\D/g, '');
-        
-        // Validar se tem pelo menos 10 dígitos
-        if (cleanNumber.length < 10) {
-          console.log(`⚠️ ${sessionName} - Número ${number} muito curto (${cleanNumber.length} dígitos) - pulando...`);
-          results.failed++;
-          results.errors.push({ number: numbers[i], error: 'Número muito curto' });
-          continue;
-        }
-        
-        // Validar se não é muito longo (máximo 15 dígitos)
-        if (cleanNumber.length > 15) {
-          console.log(`⚠️ ${sessionName} - Número ${number} muito longo (${cleanNumber.length} dígitos) - pulando...`);
-          results.failed++;
-          results.errors.push({ number: numbers[i], error: 'Número muito longo' });
-          continue;
-        }
-        
-        // Garantir que tem código do país brasileiro (55)
-        let finalNumber = cleanNumber;
-        if (!finalNumber.startsWith('55')) {
-          if (finalNumber.length === 11) {
-            // Número brasileiro sem código do país
-            finalNumber = '55' + finalNumber;
-          } else if (finalNumber.length === 10) {
-            // Número antigo sem 9 e sem código do país
-            const area = finalNumber.substring(0, 2);
-            const resto = finalNumber.substring(2);
-            finalNumber = '55' + area + '9' + resto;
-          }
-        }
-        
-        // Validar padrão brasileiro final (13 dígitos: 55 + DDD + 9XXXX-XXXX)
-        if (finalNumber.length !== 13) {
-          console.log(`⚠️ ${sessionName} - Número ${number} com formato inválido após processamento (${finalNumber.length} dígitos: ${finalNumber}) - tentando mesmo assim...`);
-        }
-        
-        formattedNumber = finalNumber + '@c.us';
-      }
+      const formattedNumber = number.includes('@c.us') ? number : number + '@c.us';
       
       console.log(`📱 ${sessionName} - Enviando ${i + 1}/${numbers.length} para ${number}...`);
       
-      // Verificar se o número está registrado no WhatsApp usando método atual
-      let isRegistered = true; // Assumir que é válido por padrão
-      try {
-        // Usar checkNumberStatus (método atual do wppconnect)
-        const numberStatus = await client.checkNumberStatus(formattedNumber);
-        isRegistered = numberStatus && numberStatus.numberExists;
-        console.log(`🔍 ${sessionName} - Status do número ${number}: ${isRegistered ? 'EXISTE' : 'NÃO EXISTE'}`);
-      } catch (statusError) {
-        console.log(`⚠️ ${sessionName} - Não foi possível verificar status do ${number}, assumindo que é válido...`);
-        isRegistered = true; // Se não conseguir verificar, assumir que é válido
-      }
+      await client.sendSeen(formattedNumber);
+      await sleep(Math.random() * 3000 + 2000);
       
-      if (!isRegistered) {
-        console.log(`⚠️ ${sessionName} - Número ${number} não está registrado no WhatsApp - pulando...`);
-        results.failed++;
-        results.errors.push({ number: numbers[i], error: 'Número não registrado no WhatsApp' });
-        continue;
-      }
+      await client.startTyping(formattedNumber);
+      await sleep(Math.random() * 5000 + 3000);
+      await client.stopTyping(formattedNumber);
       
-      // Simular atividade humana antes do envio
-      try {
-        await client.sendSeen(formattedNumber);
-        await sleep(Math.random() * 3000 + 2000);
-        
-        await client.startTyping(formattedNumber);
-        await sleep(Math.random() * 5000 + 3000);
-        await client.stopTyping(formattedNumber);
-      } catch (activityError) {
-        console.log(`⚠️ ${sessionName} - Não foi possível simular atividade para ${number}, continuando...`);
-        // Se não conseguir fazer atividade, continuar mesmo assim
-      }
+      await client.sendText(formattedNumber, message);
       
-      // Estratégia robusta: verificar se chat existe e criar se necessário
-      let messageSent = false;
-      let lastError = null;
-      
-      // PRIMEIRO: Garantir que o chat existe
-      console.log(`🔍 ${sessionName} - Garantindo que o chat existe para ${number}...`);
-      const chatExists = await ensureChatExists(client, formattedNumber, sessionName);
-      
-      if (chatExists) {
-        await sleep(1000); // Pequeno delay após criação do chat
-      }
-      
-      // 🎭 GERAR VARIAÇÃO ÚNICA DA MENSAGEM PARA CADA CONTATO
-      const variedMessage = getUniqueMessageVariation(message, `${sessionName}_${Date.now()}`);
-      console.log(`🎭 ${sessionName} - Mensagem variada gerada para ${number}: "${variedMessage.substring(0, 50)}..."`);
-      
-      try {
-        // Método 1: sendText direto (mais comum e eficiente)
-        await client.sendText(formattedNumber, variedMessage);
-        messageSent = true;
-        
-        // 🚨 PROTEÇÃO CRÍTICA: Registrar mensagem de campanha enviada
-        registerCampaignMessage(number, variedMessage);
-        
-        console.log(`✅ ${sessionName} - Método 1 (sendText) funcionou para ${number}`);
-      } catch (sendError) {
-        lastError = sendError;
-        console.log(`🔄 ${sessionName} - Método 1 falhou para ${number}: ${sendError.message}`);
-        
-        // Se o erro for "Chat not found", tentar criar o chat primeiro
-        if (sendError.message.includes('Chat not found')) {
-          console.log(`🔄 ${sessionName} - Chat não encontrado para ${number}, tentando criar novamente...`);
-          
-          try {
-            // Tentar obter ou criar o chat novamente
-            await client.getOrCreateChat(formattedNumber);
-            await sleep(2000); // Aguardar criação do chat
-            
-            // Tentar enviar novamente após criar o chat
-            await client.sendText(formattedNumber, variedMessage);
-            messageSent = true;
-            
-            // 🚨 PROTEÇÃO CRÍTICA: Registrar mensagem de campanha enviada
-            registerCampaignMessage(number, variedMessage);
-            
-            console.log(`✅ ${sessionName} - Chat criado e mensagem enviada para ${number}`);
-          } catch (createChatError) {
-            console.log(`🔄 ${sessionName} - getOrCreateChat falhou para ${number}, tentando método alternativo...`);
-            
-            try {
-              // Método alternativo: forçar criação via sendMessage
-              await client.sendMessage(formattedNumber, variedMessage, {
-                createChat: true,
-                waitForAck: false
-              });
-              messageSent = true;
-              
-              // 🚨 PROTEÇÃO CRÍTICA: Registrar mensagem de campanha enviada
-              registerCampaignMessage(number, variedMessage);
-              
-              console.log(`✅ ${sessionName} - Chat criado via sendMessage para ${number}`);
-            } catch (altCreateError) {
-              console.log(`🔄 ${sessionName} - Método createChat falhou para ${number}, tentando outros métodos...`);
-            }
-          }
-        }
-        
-        // Se ainda não foi enviado, tentar outros métodos
-        if (!messageSent) {
-          try {
-            // Método 2: sendMessage com objeto de mensagem
-            await client.sendMessage(formattedNumber, {
-              text: variedMessage,
-              type: 'text'
-            });
-            messageSent = true;
-            
-            // 🚨 PROTEÇÃO CRÍTICA: Registrar mensagem de campanha enviada
-            registerCampaignMessage(number, variedMessage);
-            
-            console.log(`✅ ${sessionName} - Método 2 (sendMessage objeto) funcionou para ${number}`);
-          } catch (altError1) {
-            console.log(`🔄 ${sessionName} - Método 2 falhou para ${number}: ${altError1.message}`);
-            
-            try {
-              // Método 3: Fallback final com configurações mínimas
-              await client.sendMessage(formattedNumber, variedMessage);
-              messageSent = true;
-              
-              // 🚨 PROTEÇÃO CRÍTICA: Registrar mensagem de campanha enviada
-              registerCampaignMessage(number, variedMessage);
-              
-              console.log(`✅ ${sessionName} - Método 3 (sendMessage simples) funcionou para ${number}`);
-            } catch (altError2) {
-              console.log(`❌ ${sessionName} - Todos os métodos falharam para ${number}`);
-              // Manter lastError para log
-            }
-          }
-        }
-      }
-      
-      if (messageSent) {
-        results.sent++;
-        console.log(`✅ ${sessionName} - Enviado humanizado para ${number}`);
-      } else {
-        results.failed++;
-        results.errors.push({ 
-          number: numbers[i], 
-          error: lastError ? lastError.message : 'Falha no envio - todos os métodos falharam' 
-        });
-        console.error(`❌ ${sessionName} - Falha no envio para ${numbers[i]}: ${lastError ? lastError.message : 'Erro desconhecido'}`);
-      }
+      results.sent++;
+      console.log(`✅ ${sessionName} - Enviado humanizado para ${number}`);
       
       if (i < numbers.length - 1) {
-        // Delay adaptativo: campanhas grandes usam delays maiores
-        let minDelay, maxDelay;
-        if (numbers.length > 500) {
-          minDelay = 10000; // 10 segundos
-          maxDelay = 20000; // 20 segundos
-        } else if (numbers.length > 100) {
-          minDelay = 7000;  // 7 segundos
-          maxDelay = 15000; // 15 segundos
-        } else {
-          minDelay = 3000;  // 3 segundos
-          maxDelay = 8000;  // 8 segundos
-        }
-        
-        const campaignDelay = Math.random() * (maxDelay - minDelay) + minDelay;
+        const campaignDelay = Math.random() * (5000 - 1000) + 1000; // 1-5 segundos
         console.log(`⏳ Aguardando ${(campaignDelay/1000).toFixed(1)}s antes da próxima mensagem...`);
         await sleep(campaignDelay);
       }
@@ -1563,14 +1139,14 @@ function startWebInterface() {
         totalLines: result.numbers.length + result.errors.length,
         validNumbers: result.numbers.length,
         errors: result.errors.length,
-        numbers: result.numbers.map(contact => ({
+        numbers: result.numbers.slice(0, 50).map(contact => ({
           original: contact.original,
           formatted: contact.formatted,
           name: contact.name,
           line: contact.line,
           displayNumber: contact.displayNumber || contact.original
         })),
-        hasMore: false, // Sempre false - sem limitação
+        hasMore: result.numbers.length > 50,
         errorSample: result.errors.slice(0, 10).map(error => ({
           line: error.line,
           original: String(error.original).substring(0, 100),
